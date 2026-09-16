@@ -1,0 +1,16 @@
+{
+  "key": "strict",
+  "name": "Strict",
+  "description": "A more security-focused configuration.",
+  "headers": [
+    {"header_name": "Strict-Transport-Security", "expected_value": "max-age=31536000; includeSubDomains; preload", "required": true},
+    {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'", "required": true},
+    {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
+    {"header_name": "Referrer-Policy", "expected_value": "no-referrer|strict-origin", "required": true},
+    {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": true},
+    {"header_name": "Permissions-Policy", "expected_value": "geolocation=(); camera=(); microphone=()", "required": true},
+    {"header_name": "Cross-Origin-Opener-Policy", "expected_value": "same-origin", "required": true},
+    {"header_name": "Cross-Origin-Resource-Policy", "expected_value": "same-origin", "required": true},
+    {"header_name": "Cross-Origin-Embedder-Policy", "expected_value": "require-corp", "required": true}
+  ]
+}

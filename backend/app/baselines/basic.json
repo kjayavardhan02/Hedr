@@ -1,0 +1,12 @@
+{
+  "key": "basic",
+  "name": "Basic",
+  "description": "A reasonable baseline for common web applications.",
+  "headers": [
+    {"header_name": "Strict-Transport-Security", "expected_value": "max-age=31536000", "required": true},
+    {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
+    {"header_name": "Referrer-Policy", "expected_value": "no-referrer|strict-origin|strict-origin-when-cross-origin", "required": true},
+    {"header_name": "X-Frame-Options", "expected_value": "DENY|SAMEORIGIN", "required": true},
+    {"header_name": "Content-Security-Policy", "expected_value": "", "required": true}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "key": "fintech",
+  "name": "Fintech",
+  "description": "A stricter baseline appropriate for financial applications, subject to appropriate review and customization.",
+  "headers": [
+    {"header_name": "Strict-Transport-Security", "expected_value": "max-age=63072000; includeSubDomains; preload", "required": true},
+    {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'", "required": true},
+    {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
+    {"header_name": "Referrer-Policy", "expected_value": "no-referrer", "required": true},
+    {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": true},
+    {"header_name": "Permissions-Policy", "expected_value": "geolocation=(); camera=(); microphone=(); payment=(self)", "required": true},
+    {"header_name": "Cross-Origin-Opener-Policy", "expected_value": "same-origin", "required": true},
+    {"header_name": "Cross-Origin-Resource-Policy", "expected_value": "same-origin", "required": true},
+    {"header_name": "Cross-Origin-Embedder-Policy", "expected_value": "require-corp", "required": true},
+    {"header_name": "X-XSS-Protection", "expected_value": "0", "required": false}
+  ]
+}

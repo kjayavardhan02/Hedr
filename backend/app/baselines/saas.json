@@ -1,0 +1,14 @@
+{
+  "key": "saas",
+  "name": "SaaS Application",
+  "description": "A baseline intended for SaaS web applications.",
+  "headers": [
+    {"header_name": "Strict-Transport-Security", "expected_value": "max-age=31536000; includeSubDomains", "required": true},
+    {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'; object-src 'none'", "required": true},
+    {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
+    {"header_name": "Referrer-Policy", "expected_value": "strict-origin-when-cross-origin", "required": true},
+    {"header_name": "X-Frame-Options", "expected_value": "SAMEORIGIN", "required": true},
+    {"header_name": "Permissions-Policy", "expected_value": "geolocation=(); camera=()", "required": false},
+    {"header_name": "Cross-Origin-Opener-Policy", "expected_value": "same-origin", "required": false}
+  ]
+}
