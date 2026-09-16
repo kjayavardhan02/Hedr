@@ -102,14 +102,14 @@ export default function PoliciesPage() {
             ) : (
               custom.map((p) => (
                 <div className="policy-card" key={p.id}>
-                  <div>
+                  <div className="policy-card-info">
                     <div style={{ fontWeight: 600 }}>{p.name}</div>
                     <div className="policy-card-meta">
                       {p.headers.length} header rule{p.headers.length === 1 ? "" : "s"}
                       {p.description ? ` — ${p.description}` : ""}
                     </div>
                   </div>
-                  <div className="row">
+                  <div className="row policy-card-actions">
                     <Link className="btn btn-secondary btn-sm" href={`/policies/${p.id}`}>
                       Edit
                     </Link>
@@ -138,7 +138,7 @@ export default function PoliciesPage() {
             </p>
             {baselines.map((p) => (
               <div className="policy-card" key={p.id}>
-                <div>
+                <div className="policy-card-info">
                   <div style={{ fontWeight: 600 }}>
                     {p.name}
                     <span className="pill">baseline</span>
@@ -147,7 +147,7 @@ export default function PoliciesPage() {
                     {p.headers.length} header rules — {p.description}
                   </div>
                 </div>
-                <div className="row">
+                <div className="row policy-card-actions">
                   <Link
                     className="btn btn-secondary btn-sm"
                     href={`/policies/new?template=${p.id}`}

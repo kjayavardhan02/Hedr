@@ -8,6 +8,7 @@ import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
+import { BackLink } from "@/components/BackLink";
 
 export default function EditPolicyPage() {
   const params = useParams<{ id: string }>();
@@ -62,6 +63,7 @@ export default function EditPolicyPage() {
   if (loading) {
     return (
       <div className="container">
+        <BackLink />
         <PolicyFormSkeleton />
       </div>
     );
@@ -70,6 +72,7 @@ export default function EditPolicyPage() {
   if (!policy) {
     return (
       <div className="container">
+        <BackLink />
         <div className="error-box">{error ?? "Policy not found."}</div>
       </div>
     );
@@ -79,6 +82,7 @@ export default function EditPolicyPage() {
 
   return (
     <div className="container">
+      <BackLink />
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>
         {readOnly ? "View Baseline" : "Edit Policy"}
       </h1>

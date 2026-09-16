@@ -8,6 +8,7 @@ import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
+import { BackLink } from "@/components/BackLink";
 
 function NewPolicyForm() {
   const router = useRouter();
@@ -66,6 +67,7 @@ function NewPolicyForm() {
 
   return (
     <div className="container">
+      <BackLink />
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>New Policy</h1>
       <p className="field-hint" style={{ marginBottom: 20 }}>
         Add each header you want to enforce, the value you expect, and whether it&apos;s

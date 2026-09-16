@@ -453,9 +453,19 @@ select:focus {
   background: rgba(255, 255, 255, 0.015);
 }
 
+.policy-card-info {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.policy-card-actions {
+  flex: 0 0 auto;
+}
+
 .policy-card-meta {
   color: var(--text-dim);
   font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .pill {
@@ -860,4 +870,22 @@ a {
   color: var(--text-dim);
   border-top: 1px solid var(--panel-border);
   padding-top: 8px;
+}
+
+/* --- Back link ------------------------------------------------------------ */
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-decoration: none !important;
+  margin-bottom: 14px;
+  transition: color 0.15s ease;
+}
+
+.back-link:hover {
+  color: var(--accent);
 }
