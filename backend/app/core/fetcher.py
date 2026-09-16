@@ -85,10 +85,19 @@ def fetch_headers(url: str) -> FetchResult:
     current_url = _validate_url(url)
     redirects_left = MAX_REDIRECTS
 
+    status_code = 0
+    headers: dict[str, str] = {}
+
     with httpx.Client(follow_redirects=False, timeout=REQUEST_TIMEOUT) as client:
         while True:
             try:
-                response = client.get(current_url)
+                # Stream instead of .get() - we only ever need the headers, so
+                # never buffer/download a (possibly huge) response body.
+                with client.stream("GET", current_url) as response:
+                    status_code = response.status_code
+                    headers = {k.lower(): v for k, v in response.headers.items()}
+                    is_redirect = response.is_redirect
+                    location = response.headers.get("location")
             except httpx.ConnectError as exc:
                 cause = exc.__cause__ or exc.__context__
                 if isinstance(cause, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(exc):
@@ -107,18 +116,11 @@ def fetch_headers(url: str) -> FetchResult:
             except httpx.HTTPError as exc:
                 raise FetchError(f"Request failed: {exc}") from exc
 
-            if response.is_redirect and redirects_left > 0:
-                next_url = response.headers.get("location")
-                if not next_url:
-                    break
-                next_url = str(httpx.URL(current_url).join(next_url))
+            if is_redirect and redirects_left > 0 and location:
+                next_url = str(httpx.URL(current_url).join(location))
                 current_url = _validate_url(next_url)
                 redirects_left -= 1
                 continue
             break
 
-    return FetchResult(
-        status_code=response.status_code,
-        headers={k.lower(): v for k, v in response.headers.items()},
-        final_url=current_url,
-    )
+    return FetchResult(status_code=status_code, headers=headers, final_url=current_url)

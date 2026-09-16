@@ -54,8 +54,8 @@ class ScanSource(str, Enum):
 
 class ScanRequest(BaseModel):
     source: ScanSource
-    url: str | None = None
-    raw_response: str | None = None
+    url: str | None = Field(default=None, max_length=2000)
+    raw_response: str | None = Field(default=None, max_length=200_000)
     policy_id: str | None = None
     policy: PolicyCreate | None = None
 
@@ -119,17 +119,17 @@ class ScanResult(BaseModel):
 
 
 class ExplainCheckIn(BaseModel):
-    name: str
-    description: str
+    name: str = Field(..., max_length=200)
+    description: str = Field(..., max_length=1000)
     status: Status
-    expected: str | None = None
-    actual: str | None = None
+    expected: str | None = Field(default=None, max_length=1000)
+    actual: str | None = Field(default=None, max_length=1000)
 
 
 class ExplainRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
-    policy_expected: str | None = None
-    actual_value: str | None = None
+    policy_expected: str | None = Field(default=None, max_length=4000)
+    actual_value: str | None = Field(default=None, max_length=4000)
     checks: list[ExplainCheckIn] = Field(default_factory=list, max_length=50)
 
 

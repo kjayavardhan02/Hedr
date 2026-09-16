@@ -121,7 +121,10 @@ def explain(req: ExplainRequest) -> ExplainResponse:
         )
 
     checks = _failing_checks(req)
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+        http_options=types.HttpOptions(timeout=20_000),  # milliseconds
+    )
 
     try:
         response = client.models.generate_content(
