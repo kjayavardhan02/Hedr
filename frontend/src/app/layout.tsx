@@ -4,6 +4,9 @@ import Link from "next/link";
 import { ToastProvider } from "@/components/Toast";
 import { ShieldLogo } from "@/components/ShieldLogo";
 import { NavLinks } from "@/components/NavLinks";
+import { AccountMenu } from "@/components/AccountMenu";
+import { AuthGate } from "@/components/AuthGate";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -23,16 +26,21 @@ export default function RootLayout({
     <html lang="en" className={inter.variable}>
       <body>
         <ToastProvider>
-          <nav className="nav">
-            <div className="nav-inner">
-              <Link href="/" className="brand">
-                <ShieldLogo />
-                Hedr
-              </Link>
-              <NavLinks />
-            </div>
-          </nav>
-          {children}
+          <AuthProvider>
+            <nav className="nav">
+              <div className="nav-inner">
+                <Link href="/" className="brand">
+                  <ShieldLogo />
+                  Hedr
+                </Link>
+                <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+                  <NavLinks />
+                  <AccountMenu />
+                </div>
+              </div>
+            </nav>
+            <AuthGate>{children}</AuthGate>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

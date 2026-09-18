@@ -10,7 +10,9 @@ REQUEST_PAYLOAD = {
 }
 
 
-def test_explain_returns_503_when_not_configured(client, monkeypatch):
+def test_explain_returns_503_when_not_configured(auth_client, monkeypatch):
+    client, _ = auth_client
+
     def _raise(req):
         raise AIExplainerNotConfigured("AI explanations are not configured.")
 
@@ -19,7 +21,9 @@ def test_explain_returns_503_when_not_configured(client, monkeypatch):
     assert resp.status_code == 503
 
 
-def test_explain_returns_502_on_ai_error(client, monkeypatch):
+def test_explain_returns_502_on_ai_error(auth_client, monkeypatch):
+    client, _ = auth_client
+
     def _raise(req):
         raise AIExplainerError("AI request failed")
 
@@ -28,7 +32,8 @@ def test_explain_returns_502_on_ai_error(client, monkeypatch):
     assert resp.status_code == 502
 
 
-def test_explain_returns_response_on_success(client, monkeypatch):
+def test_explain_returns_response_on_success(auth_client, monkeypatch):
+    client, _ = auth_client
     fake_response = ExplainResponse(
         what_it_does="Prevents clickjacking.",
         why_it_matters="The header is missing.",
@@ -39,3 +44,8 @@ def test_explain_returns_response_on_success(client, monkeypatch):
     resp = client.post("/api/explain", json=REQUEST_PAYLOAD)
     assert resp.status_code == 200
     assert resp.json()["what_it_does"] == "Prevents clickjacking."
+
+
+def test_explain_requires_auth(client):
+    resp = client.post("/api/explain", json=REQUEST_PAYLOAD)
+    assert resp.status_code == 401

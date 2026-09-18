@@ -4,7 +4,33 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+
+
+# ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    # max_length keeps this comfortably under bcrypt's hard 72-byte input
+    # limit even for multi-byte UTF-8 passwords.
+    password: str = Field(..., min_length=8, max_length=72)
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=72)
+
+
+class UserOut(BaseModel):
+    id: str
+    email: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +61,7 @@ class PolicyOut(BaseModel):
     headers: list[PolicyHeaderIn]
     is_baseline: bool
     baseline_key: str | None = None
+    owner_id: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.deps import get_current_user
 from app.core.fetcher import FetchError, SSRFBlockedError, fetch_headers
 from app.core.header_parser import RawResponseParseError, parse_raw_response
 from app.core.policy_engine import run_scan
@@ -12,7 +13,11 @@ router = APIRouter(prefix="/api/scan", tags=["scan"])
 
 
 @router.post("", response_model=ScanResult)
-def scan(payload: ScanRequest, db: Session = Depends(get_db)):
+def scan(
+    payload: ScanRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
     # --- Resolve headers to analyze -----------------------------------
     target: str | None = None
     fetched_status_code: int | None = None
@@ -44,7 +49,7 @@ def scan(payload: ScanRequest, db: Session = Depends(get_db)):
 
     if payload.policy_id:
         policy = db.get(models.Policy, payload.policy_id)
-        if not policy:
+        if not policy or not (policy.is_baseline or policy.owner_id == current_user.id):
             raise HTTPException(status_code=404, detail="Policy not found.")
         policy_headers = [PolicyHeaderIn(**h) for h in policy.headers]
         policy_name = policy.name

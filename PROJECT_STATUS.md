@@ -63,6 +63,55 @@ Stack: Next.js 15 + TypeScript (frontend) · Python + FastAPI + SQLite (backend)
   automatically on push (still listed below under "Hardening still
   outstanding")
 
+### Authentication + per-user policy ownership added
+
+Previously anyone who could reach the backend could view, edit, or delete
+*any* policy - there was no concept of a user. Fixed with real accounts:
+
+- Email/password accounts (`users` table, bcrypt-hashed passwords, never
+  returned in any response). Registration is open (no invite/approval step).
+- Sessions are a JWT in an `httpOnly` cookie (`hedr_session`) - not readable
+  by JS (mitigates XSS session theft), `SameSite=Lax` + the existing CORS
+  allowlist for CSRF protection, `Secure` gated behind `COOKIE_SECURE` (must
+  stay `false` for local http dev, set `true` once served over HTTPS), 7-day
+  expiry. Stateless - no server-side session store.
+- New endpoints: `POST /api/auth/register`, `POST /api/auth/login`,
+  `POST /api/auth/logout`, `GET /api/auth/me`.
+- Every existing endpoint (`/api/policies*`, `/api/scan`, `/api/explain`) now
+  requires a valid session - no more anonymous access at all.
+- `Policy` gained an `owner_id` column (null for the 4 shared baselines,
+  set to the creator for every custom policy). Enforced everywhere a policy
+  is looked up - list, get, update, delete, and using a `policy_id` in a
+  scan: a policy is only visible/usable if it's a baseline or you own it.
+  Anything else (including a valid id belonging to another user) returns a
+  **404**, not 403 or a partial response, so a request never confirms that
+  a given id belongs to someone else.
+- Login failures use one generic "Invalid email or password" message for
+  both "no such account" and "wrong password", and a dummy bcrypt check
+  runs even when the email doesn't exist, so response timing can't be used
+  to enumerate registered emails.
+- Frontend: `/login` and `/signup` pages, an `AuthProvider`/`AuthGate` that
+  redirects unauthenticated visitors to `/login` app-wide (nothing is
+  reachable without logging in), nav shows the signed-in email + logout.
+- Verified live (not just in tests): registered two real accounts through
+  the running app, confirmed user B gets 404 on GET/PUT/DELETE of user A's
+  policy and can't scan with its `policy_id`, confirmed user B's policy
+  list never includes it, and confirmed the same in an actual browser
+  (direct URL navigation to another user's policy edit page renders
+  "Policy not found", not a crash or leaked data).
+- Added 44 new backend tests (`test_api_auth.py`, `test_security_unit.py`)
+  covering registration/login/logout edge cases, tampered/expired/forged
+  JWTs, and the ownership-isolation scenarios above end to end. Full suite:
+  162 tests, 95% coverage.
+- Local `hedr.db` was reset (schema changed - new `users` table, new
+  `owner_id` column); it's gitignored/disposable and reseeds automatically
+  on next backend startup.
+- **Residual, consciously scoped out:** no email verification or password
+  reset (would need real SMTP infra), no login-attempt rate limiting/lockout
+  (falls under the existing "no rate limiting" gap below), and the
+  duplicate-email error on registration does confirm an email is already
+  registered (a common, generally-accepted trade-off for signup UX).
+
 ---
 
 ## ⏳ Not done — known gaps
@@ -79,9 +128,9 @@ Stack: Next.js 15 + TypeScript (frontend) · Python + FastAPI + SQLite (backend)
 ### Hardening still outstanding
 
 - **No frontend tests** — backend now has a pytest suite (see above), but the Next.js frontend has none yet.
-- **No rate limiting** on `/api/scan` or `/api/explain` (the latter costs real money per call)
+- **No rate limiting** on `/api/scan` or `/api/explain` (the latter costs real money per call), or on login/register attempts specifically (brute-force/account-creation throttling)
 - **AI prompt-injection surface** — a malicious scanned site controls its own header values, which flow into the AI explanation prompt. Can't affect the PASS/FAIL verdict or score (already computed deterministically before AI runs), but could theoretically try to influence the explanation *text*. Not sanitized against this.
-- No authentication — anyone who can reach the backend can manage policies and spend AI quota. Fine on localhost only.
+- No email verification or password reset flow (would need real SMTP infra) - out of scope until this leaves localhost
 - No CI pipeline (lint/type-check/test-on-push)
 - No DB migrations (Alembic) — fine at SQLite/hobby scale
 - No structured logging/observability beyond uvicorn's default access log

@@ -30,6 +30,9 @@ what complies, what doesn't, why it matters, and how to fix it.
   is ever called.
 - **SSRF-guarded fetching** — scanning a URL blocks requests to
   private/internal/loopback addresses.
+- **Per-user accounts** — email/password login; every custom policy is
+  private to the account that created it. Built-in baselines are shared
+  and read-only for everyone.
 
 ## Tech stack
 
@@ -77,7 +80,8 @@ python3 -m venv venv
 source venv/bin/activate       # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env and set GEMINI_API_KEY (leave GEMINI_MODEL as-is unless you want a different model)
+# edit .env: set GEMINI_API_KEY, and generate a JWT_SECRET_KEY with:
+#   python -c "import secrets; print(secrets.token_hex(32))"
 uvicorn app.main:app --reload --port 8123
 ```
 
@@ -103,6 +107,13 @@ development.
 Visit **http://localhost:3000**.
 
 ## How to use it
+
+### Sign up / log in
+
+The scan and policy screens require an account. Go to **/signup**, register
+with an email and password (8+ characters), and you're logged in
+immediately. Policies you create are visible only to you; the built-in
+baselines are visible to everyone.
 
 ### Scan a target
 
@@ -157,11 +168,28 @@ API key or internet access is required to run them.
 - The deterministic rule engine decides every PASS/FAIL/WARNING verdict.
   AI only explains a verdict that's already been made — it cannot change it.
 
+## Notes on authentication
+
+- Sessions are a JWT stored in an `httpOnly` cookie — not readable by
+  client-side JavaScript, so it can't be stolen via an XSS payload the way
+  a token in `localStorage` could.
+- `COOKIE_SECURE` in `.env` must stay `false` for local `http://localhost`
+  development (a `Secure` cookie is never sent by the browser over plain
+  HTTP) and should be set `true` once the app is served over HTTPS.
+- A policy is visible, editable, and usable in a scan only if it's a shared
+  baseline or you created it. Anything else — including a valid policy id
+  belonging to another user — returns a 404, the same as an id that doesn't
+  exist at all.
+- There's no password reset or email verification flow (no SMTP configured)
+  and no rate limiting on login/register attempts — both are known,
+  consciously-scoped-out gaps tracked in `PROJECT_STATUS.md`.
+
 ## Not yet included
 
 - Scan history / security regression diffing over time
 - CI/CD integration, policy-as-code
 - Team accounts, multi-application monitoring, scheduled scans
+- Password reset, email verification, rate limiting on auth endpoints
 
 See [`Hedr/Hedr_Idea.md`](Hedr/Hedr_Idea.md) for the full original product
 spec and long-term roadmap.

@@ -17,7 +17,8 @@ INLINE_POLICY = {
 }
 
 
-def test_scan_raw_with_inline_policy(client):
+def test_scan_raw_with_inline_policy(auth_client):
+    client, _ = auth_client
     resp = client.post(
         "/api/scan",
         json={"source": "raw", "raw_response": RAW_RESPONSE, "policy": INLINE_POLICY},
@@ -30,17 +31,20 @@ def test_scan_raw_with_inline_policy(client):
     assert len(body["findings"]) == 2
 
 
-def test_scan_raw_missing_raw_response_422(client):
+def test_scan_raw_missing_raw_response_422(auth_client):
+    client, _ = auth_client
     resp = client.post("/api/scan", json={"source": "raw", "policy": INLINE_POLICY})
     assert resp.status_code == 422
 
 
-def test_scan_without_policy_or_policy_id_422(client):
+def test_scan_without_policy_or_policy_id_422(auth_client):
+    client, _ = auth_client
     resp = client.post("/api/scan", json={"source": "raw", "raw_response": RAW_RESPONSE})
     assert resp.status_code == 422
 
 
-def test_scan_with_inline_policy_missing_headers_422(client):
+def test_scan_with_inline_policy_missing_headers_422(auth_client):
+    client, _ = auth_client
     resp = client.post(
         "/api/scan",
         json={
@@ -52,7 +56,8 @@ def test_scan_with_inline_policy_missing_headers_422(client):
     assert resp.status_code == 422
 
 
-def test_scan_with_nonexistent_policy_id_404(client):
+def test_scan_with_nonexistent_policy_id_404(auth_client):
+    client, _ = auth_client
     resp = client.post(
         "/api/scan",
         json={"source": "raw", "raw_response": RAW_RESPONSE, "policy_id": "does-not-exist"},
@@ -60,7 +65,8 @@ def test_scan_with_nonexistent_policy_id_404(client):
     assert resp.status_code == 404
 
 
-def test_scan_with_baseline_policy_id(client):
+def test_scan_with_baseline_policy_id(auth_client):
+    client, _ = auth_client
     baseline = client.get("/api/policies/baselines").json()[0]
     resp = client.post(
         "/api/scan",
@@ -70,12 +76,14 @@ def test_scan_with_baseline_policy_id(client):
     assert resp.json()["policy_name"] == baseline["name"]
 
 
-def test_scan_url_source_empty_url_422(client):
+def test_scan_url_source_empty_url_422(auth_client):
+    client, _ = auth_client
     resp = client.post("/api/scan", json={"source": "url", "url": "  ", "policy": INLINE_POLICY})
     assert resp.status_code == 422
 
 
-def test_scan_url_source_success(client, monkeypatch):
+def test_scan_url_source_success(auth_client, monkeypatch):
+    client, _ = auth_client
     monkeypatch.setattr(
         scan_router,
         "fetch_headers",
@@ -95,7 +103,9 @@ def test_scan_url_source_success(client, monkeypatch):
     assert body["score"] == 100.0
 
 
-def test_scan_url_source_ssrf_blocked_returns_400(client, monkeypatch):
+def test_scan_url_source_ssrf_blocked_returns_400(auth_client, monkeypatch):
+    client, _ = auth_client
+
     def _raise(url):
         raise SSRFBlockedError("blocked")
 
@@ -107,7 +117,9 @@ def test_scan_url_source_ssrf_blocked_returns_400(client, monkeypatch):
     assert resp.status_code == 400
 
 
-def test_scan_url_source_fetch_error_returns_502(client, monkeypatch):
+def test_scan_url_source_fetch_error_returns_502(auth_client, monkeypatch):
+    client, _ = auth_client
+
     def _raise(url):
         raise FetchError("could not connect")
 
@@ -117,3 +129,11 @@ def test_scan_url_source_fetch_error_returns_502(client, monkeypatch):
         json={"source": "url", "url": "https://unreachable.example", "policy": INLINE_POLICY},
     )
     assert resp.status_code == 502
+
+
+def test_scan_requires_auth(client):
+    resp = client.post(
+        "/api/scan",
+        json={"source": "raw", "raw_response": RAW_RESPONSE, "policy": INLINE_POLICY},
+    )
+    assert resp.status_code == 401

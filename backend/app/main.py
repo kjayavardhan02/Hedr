@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import models, seed
 from app.database import Base, SessionLocal, engine
-from app.routers import explain, policies, scan
+from app.routers import auth, explain, policies, scan
 
 
 @asynccontextmanager
@@ -29,6 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(policies.router)
 app.include_router(scan.router)
 app.include_router(explain.router)

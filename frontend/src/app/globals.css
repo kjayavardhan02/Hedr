@@ -131,6 +131,17 @@ select:focus {
   background: rgba(255, 122, 26, 0.1);
 }
 
+.account-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-email {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--panel-border);

@@ -2,10 +2,13 @@ import type {
   ApiErrorBody,
   ExplainRequestPayload,
   ExplainResponse,
+  LoginPayload,
   Policy,
   PolicyCreatePayload,
+  RegisterPayload,
   ScanRequestPayload,
   ScanResult,
+  User,
 } from "./types";
 
 export class ApiError extends Error {
@@ -16,6 +19,11 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+// Fired whenever any request comes back 401, so a single AuthProvider can
+// clear the current user and redirect to /login without every call site
+// needing to special-case it.
+export const AUTH_EVENT = "hedr:unauthorized";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -34,6 +42,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore - body wasn't JSON
     }
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(AUTH_EVENT));
+    }
     throw new ApiError(res.status, message);
   }
 
@@ -44,6 +55,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  register: (payload: RegisterPayload) =>
+    request<User>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  login: (payload: LoginPayload) =>
+    request<User>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  logout: () => request<void>("/api/auth/logout", { method: "POST" }),
+  me: () => request<User>("/api/auth/me"),
   listPolicies: () => request<Policy[]>("/api/policies"),
   listBaselines: () => request<Policy[]>("/api/policies/baselines"),
   getPolicy: (id: string) => request<Policy>(`/api/policies/${id}`),

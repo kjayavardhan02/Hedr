@@ -1,62 +1,57 @@
 BASELINE_KEYS = {"basic", "strict", "saas", "fintech"}
 
+POLICY_PAYLOAD = {
+    "name": "My Policy",
+    "description": "test",
+    "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
+}
 
-def test_baselines_are_seeded_on_startup(client):
+
+def test_baselines_are_seeded_on_startup(auth_client):
+    client, _ = auth_client
     resp = client.get("/api/policies/baselines")
     assert resp.status_code == 200
     baselines = resp.json()
     assert {b["baseline_key"] for b in baselines} == BASELINE_KEYS
     assert all(b["is_baseline"] is True for b in baselines)
+    assert all(b["owner_id"] is None for b in baselines)
 
 
-def test_create_policy(client):
-    payload = {
-        "name": "My Policy",
-        "description": "test",
-        "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
-    }
-    resp = client.post("/api/policies", json=payload)
+def test_create_policy(auth_client):
+    client, user = auth_client
+    resp = client.post("/api/policies", json=POLICY_PAYLOAD)
     assert resp.status_code == 201
     body = resp.json()
     assert body["name"] == "My Policy"
     assert body["is_baseline"] is False
+    assert body["owner_id"] == user["id"]
     assert body["id"]
 
 
-def test_create_policy_without_headers_fails(client):
+def test_create_policy_without_headers_fails(auth_client):
+    client, _ = auth_client
     resp = client.post("/api/policies", json={"name": "Empty", "description": "", "headers": []})
     assert resp.status_code == 422
 
 
-def test_get_policy_roundtrip(client):
-    create = client.post(
-        "/api/policies",
-        json={
-            "name": "Roundtrip",
-            "description": "",
-            "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
-        },
-    )
+def test_get_policy_roundtrip(auth_client):
+    client, _ = auth_client
+    create = client.post("/api/policies", json=POLICY_PAYLOAD)
     policy_id = create.json()["id"]
     resp = client.get(f"/api/policies/{policy_id}")
     assert resp.status_code == 200
     assert resp.json()["id"] == policy_id
 
 
-def test_get_nonexistent_policy_404(client):
+def test_get_nonexistent_policy_404(auth_client):
+    client, _ = auth_client
     resp = client.get("/api/policies/does-not-exist")
     assert resp.status_code == 404
 
 
-def test_update_policy(client):
-    create = client.post(
-        "/api/policies",
-        json={
-            "name": "Before",
-            "description": "",
-            "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
-        },
-    )
+def test_update_policy(auth_client):
+    client, _ = auth_client
+    create = client.post("/api/policies", json=POLICY_PAYLOAD)
     policy_id = create.json()["id"]
     resp = client.put(
         f"/api/policies/{policy_id}",
@@ -70,7 +65,8 @@ def test_update_policy(client):
     assert resp.json()["name"] == "After"
 
 
-def test_update_baseline_policy_forbidden(client):
+def test_update_baseline_policy_forbidden(auth_client):
+    client, _ = auth_client
     baseline_id = client.get("/api/policies/baselines").json()[0]["id"]
     resp = client.put(
         f"/api/policies/{baseline_id}",
@@ -79,42 +75,52 @@ def test_update_baseline_policy_forbidden(client):
     assert resp.status_code == 400
 
 
-def test_delete_policy(client):
-    create = client.post(
-        "/api/policies",
-        json={
-            "name": "ToDelete",
-            "description": "",
-            "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
-        },
-    )
+def test_delete_policy(auth_client):
+    client, _ = auth_client
+    create = client.post("/api/policies", json={**POLICY_PAYLOAD, "name": "ToDelete"})
     policy_id = create.json()["id"]
     resp = client.delete(f"/api/policies/{policy_id}")
     assert resp.status_code == 204
     assert client.get(f"/api/policies/{policy_id}").status_code == 404
 
 
-def test_delete_baseline_policy_forbidden(client):
+def test_delete_baseline_policy_forbidden(auth_client):
+    client, _ = auth_client
     baseline_id = client.get("/api/policies/baselines").json()[0]["id"]
     resp = client.delete(f"/api/policies/{baseline_id}")
     assert resp.status_code == 400
 
 
-def test_delete_nonexistent_policy_404(client):
+def test_delete_nonexistent_policy_404(auth_client):
+    client, _ = auth_client
     resp = client.delete("/api/policies/does-not-exist")
     assert resp.status_code == 404
 
 
-def test_list_policies_includes_created_policy(client):
-    create = client.post(
-        "/api/policies",
-        json={
-            "name": "Listed",
-            "description": "",
-            "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
-        },
-    )
+def test_list_policies_includes_created_policy(auth_client):
+    client, _ = auth_client
+    create = client.post("/api/policies", json={**POLICY_PAYLOAD, "name": "Listed"})
     policy_id = create.json()["id"]
     resp = client.get("/api/policies")
     assert resp.status_code == 200
     assert any(p["id"] == policy_id for p in resp.json())
+
+
+class TestPoliciesRequireAuth:
+    def test_list_requires_auth(self, client):
+        assert client.get("/api/policies").status_code == 401
+
+    def test_baselines_require_auth(self, client):
+        assert client.get("/api/policies/baselines").status_code == 401
+
+    def test_get_requires_auth(self, client):
+        assert client.get("/api/policies/some-id").status_code == 401
+
+    def test_create_requires_auth(self, client):
+        assert client.post("/api/policies", json=POLICY_PAYLOAD).status_code == 401
+
+    def test_update_requires_auth(self, client):
+        assert client.put("/api/policies/some-id", json=POLICY_PAYLOAD).status_code == 401
+
+    def test_delete_requires_auth(self, client):
+        assert client.delete("/api/policies/some-id").status_code == 401

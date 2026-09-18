@@ -1,5 +1,21 @@
 export type Status = "PASS" | "FAIL" | "WARNING" | "INFO";
 
+export interface User {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
 export interface PolicyHeader {
   header_name: string;
   expected_value: string;
@@ -13,6 +29,7 @@ export interface Policy {
   headers: PolicyHeader[];
   is_baseline: boolean;
   baseline_key: string | null;
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
 }
