@@ -134,6 +134,20 @@ Visit **http://localhost:3000**.
 3. Save. Or start from a baseline (**Policies → Use as template**) and
    customize it instead of writing one from scratch.
 
+## Running the backend tests
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements-dev.txt
+pytest                              # run the suite
+pytest --cov=app --cov-report=term-missing   # with coverage
+```
+
+Tests point at a throwaway temp SQLite file (never `backend/hedr.db`) and
+never make real network calls — URL fetches are mocked, so no live
+API key or internet access is required to run them.
+
 ## Notes on the AI layer
 
 - AI is called **on-demand only**, when you click "Explain with AI" on a

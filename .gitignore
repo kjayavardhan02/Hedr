@@ -5,6 +5,8 @@ backend/**/__pycache__/
 backend/*.pyc
 backend/hedr.db
 backend/.env
+backend/.pytest_cache/
+backend/.coverage
 
 # Frontend (Next.js)
 frontend/node_modules/
