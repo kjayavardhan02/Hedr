@@ -13,7 +13,17 @@ const COMMON_HEADERS = [
   "Cross-Origin-Resource-Policy",
   "Cross-Origin-Embedder-Policy",
   "X-XSS-Protection",
+  "Cache-Control",
+  "Access-Control-Allow-Origin",
+  "Access-Control-Allow-Credentials",
 ];
+
+const ACAC_HEADER = "access-control-allow-credentials";
+const ACAO_HEADER = "access-control-allow-origin";
+
+function normalizeHeaderName(name: string): string {
+  return name.trim().toLowerCase();
+}
 
 interface Props {
   headers: PolicyHeader[];
@@ -33,6 +43,17 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
   function addRow() {
     onChange([...headers, { header_name: "", expected_value: "", required: true }]);
   }
+
+  function addAcaoRow() {
+    onChange([
+      ...headers,
+      { header_name: "Access-Control-Allow-Origin", expected_value: "", required: true },
+    ]);
+  }
+
+  const hasAcac = headers.some((h) => normalizeHeaderName(h.header_name) === ACAC_HEADER);
+  const hasAcao = headers.some((h) => normalizeHeaderName(h.header_name) === ACAO_HEADER);
+  const suggestAcao = hasAcac && !hasAcao;
 
   return (
     <div>
@@ -89,6 +110,18 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
           </button>
         </div>
       ))}
+
+      {suggestAcao && (
+        <div className="header-suggestion fade-in">
+          <span>
+            <strong>Access-Control-Allow-Credentials</strong> only takes effect alongside{" "}
+            <strong>Access-Control-Allow-Origin</strong> - want to add that too?
+          </span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={addAcaoRow}>
+            + Add Access-Control-Allow-Origin
+          </button>
+        </div>
+      )}
 
       <button type="button" className="btn btn-secondary btn-sm" onClick={addRow}>
         + Add Header

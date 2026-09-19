@@ -20,6 +20,8 @@ from app.schemas import (
 )
 
 CSP_HEADER_NAME = "content-security-policy"
+CORS_ACAO_HEADER_NAME = "access-control-allow-origin"
+CORS_ACAC_HEADER_NAME = "access-control-allow-credentials"
 
 
 def _recommendation_for(header: str, status: Status, present: bool) -> str | None:
@@ -83,6 +85,27 @@ def evaluate_header(policy_header: PolicyHeaderIn, raw_headers: dict[str, str]) 
             status = outcome.status
             checks = outcome.checks
             score_earned = weight * (outcome.passed_count / outcome.total_count)
+
+    # Access-Control-Allow-Credentials has no effect in the browser unless
+    # Access-Control-Allow-Origin is also present on the same response - so
+    # when ACAO is missing, ACAC being "wrong" isn't a real exposure. Never
+    # flag it in that situation, regardless of what the policy expected.
+    if name_lower == CORS_ACAC_HEADER_NAME and present and CORS_ACAO_HEADER_NAME not in raw_headers:
+        status = Status.PASS
+        score_earned = weight
+        checks = [
+            CheckResult(
+                name="acao-context",
+                description=(
+                    "'Access-Control-Allow-Credentials' has no effect without "
+                    "'Access-Control-Allow-Origin' on the same response, so it "
+                    "isn't flagged here."
+                ),
+                status=Status.PASS,
+                expected=None,
+                actual=actual_value,
+            )
+        ]
 
     return HeaderFinding(
         header=name,

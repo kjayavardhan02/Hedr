@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -17,6 +17,16 @@ class UserCreate(BaseModel):
     # max_length keeps this comfortably under bcrypt's hard 72-byte input
     # limit even for multi-byte UTF-8 passwords.
     password: str = Field(..., min_length=8, max_length=72)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def _strip_and_require_non_empty(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("This field cannot be blank.")
+        return stripped
 
 
 class UserLogin(BaseModel):
@@ -27,6 +37,8 @@ class UserLogin(BaseModel):
 class UserOut(BaseModel):
     id: str
     email: str
+    first_name: str
+    last_name: str
     created_at: datetime
 
     class Config:

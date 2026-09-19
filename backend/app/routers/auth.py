@@ -31,7 +31,12 @@ def register(payload: UserCreate, response: Response, db: Session = Depends(get_
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
-    user = models.User(email=email, hashed_password=hash_password(payload.password))
+    user = models.User(
+        email=email,
+        hashed_password=hash_password(payload.password),
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

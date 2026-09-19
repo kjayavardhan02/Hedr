@@ -3,12 +3,16 @@ export type Status = "PASS" | "FAIL" | "WARNING" | "INFO";
 export interface User {
   id: string;
   email: string;
+  first_name: string;
+  last_name: string;
   created_at: string;
 }
 
 export interface RegisterPayload {
   email: string;
   password: string;
+  first_name: string;
+  last_name: string;
 }
 
 export interface LoginPayload {

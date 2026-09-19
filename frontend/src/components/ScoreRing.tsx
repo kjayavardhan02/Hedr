@@ -53,7 +53,10 @@ export function ScoreRing({ score, grade }: { score: number; grade: string }) {
   const color = gradeColor(grade);
 
   return (
-    <div className="score-ring" style={{ width: SIZE, height: SIZE }}>
+    <div
+      className="score-ring"
+      style={{ width: SIZE, height: SIZE, "--ring-color": color } as React.CSSProperties}
+    >
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
         <circle
           cx={SIZE / 2}

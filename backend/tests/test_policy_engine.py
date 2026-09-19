@@ -39,6 +39,46 @@ class TestEvaluateHeader:
         assert finding.status == Status.PASS
         assert finding.recommendation is None
 
+    def test_acac_without_acao_is_not_flagged_even_on_value_mismatch(self):
+        ph = PolicyHeaderIn(
+            header_name="Access-Control-Allow-Credentials",
+            expected_value="true",
+            required=True,
+        )
+        # Actual value doesn't match the policy, but ACAO is absent from the
+        # response, so this must still pass - ACAC is inert without it.
+        finding = evaluate_header(ph, {"access-control-allow-credentials": "false"})
+        assert finding.status == Status.PASS
+        assert finding.score_earned == finding.score_possible
+        assert finding.recommendation is None
+
+    def test_acac_is_flagged_normally_when_acao_present(self):
+        ph = PolicyHeaderIn(
+            header_name="Access-Control-Allow-Credentials",
+            expected_value="true",
+            required=True,
+        )
+        finding = evaluate_header(
+            ph,
+            {
+                "access-control-allow-credentials": "false",
+                "access-control-allow-origin": "https://example.com",
+            },
+        )
+        assert finding.status == Status.FAIL
+
+    def test_acac_still_flagged_as_missing_when_required_and_absent(self):
+        ph = PolicyHeaderIn(
+            header_name="Access-Control-Allow-Credentials",
+            expected_value="true",
+            required=True,
+        )
+        # ACAC is not present at all (not just missing ACAO) - the "required
+        # but missing" rule still applies normally.
+        finding = evaluate_header(ph, {})
+        assert finding.status == Status.FAIL
+        assert finding.present is False
+
 
 class TestEvaluateCsp:
     def test_no_policy_header_still_runs_best_practice_checks(self):

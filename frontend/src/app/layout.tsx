@@ -1,10 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import Link from "next/link";
 import { ToastProvider } from "@/components/Toast";
-import { ShieldLogo } from "@/components/ShieldLogo";
-import { NavLinks } from "@/components/NavLinks";
-import { AccountMenu } from "@/components/AccountMenu";
+import { Sidebar } from "@/components/Sidebar";
 import { AuthGate } from "@/components/AuthGate";
 import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
@@ -25,21 +22,18 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
+        <div className="ambient-glow" aria-hidden="true">
+          <span className="ambient-blob ambient-blob-1" />
+          <span className="ambient-blob ambient-blob-2" />
+        </div>
         <ToastProvider>
           <AuthProvider>
-            <nav className="nav">
-              <div className="nav-inner">
-                <Link href="/" className="brand">
-                  <ShieldLogo />
-                  Hedr
-                </Link>
-                <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-                  <NavLinks />
-                  <AccountMenu />
-                </div>
-              </div>
-            </nav>
-            <AuthGate>{children}</AuthGate>
+            <div className="app-shell">
+              <Sidebar />
+              <main className="app-content">
+                <AuthGate>{children}</AuthGate>
+              </main>
+            </div>
           </AuthProvider>
         </ToastProvider>
       </body>

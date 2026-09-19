@@ -21,6 +21,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 
 DEFAULT_PASSWORD = "correct-horse-battery-staple"
+DEFAULT_FIRST_NAME = "Ada"
+DEFAULT_LAST_NAME = "Lovelace"
 
 
 @pytest.fixture
@@ -40,7 +42,15 @@ def auth_client(client):
     """A TestClient already logged in as a freshly-registered, unique user.
     Returns (client, user_dict) - the session cookie lives on `client`."""
     email = _unique_email()
-    resp = client.post("/api/auth/register", json={"email": email, "password": DEFAULT_PASSWORD})
+    resp = client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": DEFAULT_PASSWORD,
+            "first_name": DEFAULT_FIRST_NAME,
+            "last_name": DEFAULT_LAST_NAME,
+        },
+    )
     assert resp.status_code == 201, resp.text
     return client, resp.json()
 
@@ -56,7 +66,15 @@ def make_user(client):
 
     def _create():
         email = _unique_email()
-        resp = client.post("/api/auth/register", json={"email": email, "password": DEFAULT_PASSWORD})
+        resp = client.post(
+            "/api/auth/register",
+            json={
+                "email": email,
+                "password": DEFAULT_PASSWORD,
+                "first_name": DEFAULT_FIRST_NAME,
+                "last_name": DEFAULT_LAST_NAME,
+            },
+        )
         assert resp.status_code == 201, resp.text
         user = resp.json()
         created.append(user)

@@ -17,6 +17,9 @@ WEIGHT_TABLE: dict[str, float] = {
     "cross-origin-embedder-policy": 5,
     "x-frame-options": 10,
     "x-xss-protection": 5,
+    "cache-control": 10,
+    "access-control-allow-origin": 10,
+    "access-control-allow-credentials": 5,
 }
 
 SEVERITY_TABLE: dict[str, str] = {
@@ -30,6 +33,9 @@ SEVERITY_TABLE: dict[str, str] = {
     "cross-origin-embedder-policy": "low",
     "x-frame-options": "medium",
     "x-xss-protection": "info",
+    "cache-control": "medium",
+    "access-control-allow-origin": "medium",
+    "access-control-allow-credentials": "medium",
 }
 
 DEFAULT_WEIGHT = 5.0

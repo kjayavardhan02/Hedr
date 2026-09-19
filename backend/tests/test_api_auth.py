@@ -1,7 +1,9 @@
 import jwt
 
 from app.config import JWT_ALGORITHM, JWT_SECRET_KEY, SESSION_COOKIE_NAME
-from tests.conftest import DEFAULT_PASSWORD
+from tests.conftest import DEFAULT_FIRST_NAME, DEFAULT_LAST_NAME, DEFAULT_PASSWORD
+
+NAME_FIELDS = {"first_name": DEFAULT_FIRST_NAME, "last_name": DEFAULT_LAST_NAME}
 
 POLICY_PAYLOAD = {
     "name": "Alice's Secret Policy",
@@ -13,17 +15,21 @@ POLICY_PAYLOAD = {
 class TestRegister:
     def test_register_returns_user_without_password(self, client):
         resp = client.post(
-            "/api/auth/register", json={"email": "a@example.com", "password": DEFAULT_PASSWORD}
+            "/api/auth/register",
+            json={"email": "a@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
         )
         assert resp.status_code == 201
         body = resp.json()
         assert body["email"] == "a@example.com"
+        assert body["first_name"] == DEFAULT_FIRST_NAME
+        assert body["last_name"] == DEFAULT_LAST_NAME
         assert "password" not in body
         assert "hashed_password" not in body
 
     def test_register_sets_httponly_cookie(self, client):
         resp = client.post(
-            "/api/auth/register", json={"email": "b@example.com", "password": DEFAULT_PASSWORD}
+            "/api/auth/register",
+            json={"email": "b@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
         )
         set_cookie = resp.headers.get("set-cookie", "")
         assert SESSION_COOKIE_NAME in set_cookie
@@ -31,39 +37,85 @@ class TestRegister:
         assert "samesite=lax" in set_cookie.lower()
 
     def test_duplicate_email_rejected(self, client):
-        payload = {"email": "dup@example.com", "password": DEFAULT_PASSWORD}
+        payload = {"email": "dup@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS}
         first = client.post("/api/auth/register", json=payload)
         assert first.status_code == 201
         second = client.post("/api/auth/register", json=payload)
         assert second.status_code == 409
 
     def test_duplicate_email_case_insensitive(self, client):
-        client.post("/api/auth/register", json={"email": "Case@Example.com", "password": DEFAULT_PASSWORD})
+        client.post(
+            "/api/auth/register",
+            json={"email": "Case@Example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
+        )
         second = client.post(
-            "/api/auth/register", json={"email": "case@example.com", "password": DEFAULT_PASSWORD}
+            "/api/auth/register",
+            json={"email": "case@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
         )
         assert second.status_code == 409
 
     def test_weak_password_rejected(self, client):
-        resp = client.post("/api/auth/register", json={"email": "weak@example.com", "password": "short"})
+        resp = client.post(
+            "/api/auth/register",
+            json={"email": "weak@example.com", "password": "short", **NAME_FIELDS},
+        )
         assert resp.status_code == 422
 
     def test_invalid_email_rejected(self, client):
         resp = client.post(
-            "/api/auth/register", json={"email": "not-an-email", "password": DEFAULT_PASSWORD}
+            "/api/auth/register",
+            json={"email": "not-an-email", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
         )
         assert resp.status_code == 422
 
     def test_overlong_password_rejected(self, client):
         resp = client.post(
-            "/api/auth/register", json={"email": "long@example.com", "password": "a" * 200}
+            "/api/auth/register",
+            json={"email": "long@example.com", "password": "a" * 200, **NAME_FIELDS},
         )
         assert resp.status_code == 422
+
+    def test_missing_first_name_rejected(self, client):
+        resp = client.post(
+            "/api/auth/register",
+            json={"email": "noname@example.com", "password": DEFAULT_PASSWORD, "last_name": "Lovelace"},
+        )
+        assert resp.status_code == 422
+
+    def test_blank_last_name_rejected(self, client):
+        resp = client.post(
+            "/api/auth/register",
+            json={
+                "email": "blankname@example.com",
+                "password": DEFAULT_PASSWORD,
+                "first_name": "Ada",
+                "last_name": "   ",
+            },
+        )
+        assert resp.status_code == 422
+
+    def test_names_are_trimmed(self, client):
+        resp = client.post(
+            "/api/auth/register",
+            json={
+                "email": "trimmed@example.com",
+                "password": DEFAULT_PASSWORD,
+                "first_name": "  Ada  ",
+                "last_name": "  Lovelace  ",
+            },
+        )
+        assert resp.status_code == 201
+        body = resp.json()
+        assert body["first_name"] == "Ada"
+        assert body["last_name"] == "Lovelace"
 
 
 class TestLogin:
     def _register(self, client, email):
-        client.post("/api/auth/register", json={"email": email, "password": DEFAULT_PASSWORD})
+        client.post(
+            "/api/auth/register",
+            json={"email": email, "password": DEFAULT_PASSWORD, **NAME_FIELDS},
+        )
         client.post("/api/auth/logout")
 
     def test_login_success(self, client):
@@ -72,7 +124,9 @@ class TestLogin:
             "/api/auth/login", json={"email": "login-ok@example.com", "password": DEFAULT_PASSWORD}
         )
         assert resp.status_code == 200
-        assert resp.json()["email"] == "login-ok@example.com"
+        body = resp.json()
+        assert body["email"] == "login-ok@example.com"
+        assert body["first_name"] == DEFAULT_FIRST_NAME
 
     def test_wrong_password_returns_generic_401(self, client):
         self._register(client, "login-wrong@example.com")

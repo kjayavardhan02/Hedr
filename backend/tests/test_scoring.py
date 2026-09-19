@@ -14,6 +14,15 @@ def test_known_headers_return_table_values():
     assert get_severity("X-Frame-Options") == "medium"
 
 
+def test_cors_and_caching_headers_are_recognized():
+    assert get_weight("Cache-Control") == 10
+    assert get_severity("cache-control") == "medium"
+    assert get_weight("Access-Control-Allow-Origin") == 10
+    assert get_severity("access-control-allow-origin") == "medium"
+    assert get_weight("Access-Control-Allow-Credentials") == 5
+    assert get_severity("access-control-allow-credentials") == "medium"
+
+
 def test_unknown_header_falls_back_to_defaults():
     assert get_weight("x-totally-made-up-header") == DEFAULT_WEIGHT
     assert get_severity("x-totally-made-up-header") == DEFAULT_SEVERITY
