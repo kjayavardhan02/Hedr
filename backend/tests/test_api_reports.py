@@ -51,7 +51,7 @@ class TestScanCreatesReport:
         assert summary["policy_name"] == "Frame + CSP Policy"
         assert summary["source"] == "raw"
         assert summary["scan_number"] == 1
-        assert summary["policy_version"] == "v1"
+        assert summary["policy_version"] == "ad-hoc"
         # X-Frame-Options + the dedicated CSP finding = 2 headers evaluated.
         assert summary["headers_evaluated"] == 2
         assert "score" in summary and "grade" in summary
@@ -87,7 +87,7 @@ class TestScanCreatesReport:
         detail = client.get(f"/api/reports/{report_id}").json()
         assert "raw_headers" not in detail
         assert detail["scan_number"] == 1
-        assert detail["policy_version"] == "v1"
+        assert detail["policy_version"] == "ad-hoc"
         assert detail["headers_evaluated"] == 2
 
     def test_report_findings_only_include_policy_headers(self, auth_client):

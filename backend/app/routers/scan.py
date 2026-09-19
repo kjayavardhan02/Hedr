@@ -68,9 +68,9 @@ def scan(
             raise HTTPException(status_code=422, detail="Inline policy must include at least one header.")
         policy_headers = payload.policy.headers
         policy_name = payload.policy.name or "Ad-hoc Policy"
-        # Ad-hoc policies aren't saved anywhere, so there's nothing to
-        # version - always "v1".
-        policy_version = "v1"
+        # Ad-hoc policies aren't saved anywhere, so "v1" would falsely
+        # imply a version history that doesn't exist - label it plainly.
+        policy_version = "ad-hoc"
     else:
         raise HTTPException(status_code=422, detail="Either policy_id or policy must be provided.")
 

@@ -108,24 +108,26 @@ export default function ReportsPage() {
                     {r.headers_evaluated} header{r.headers_evaluated === 1 ? "" : "s"} evaluated
                   </div>
                 </div>
-                <div className="row policy-card-actions">
+                <div className="policy-card-actions report-actions">
                   <span className={`badge ${gradeBadgeClass(r.grade)}`}>
                     {r.grade} · {r.score}
                   </span>
-                  <Link className="btn btn-secondary btn-sm" href={`/reports/${r.id}`}>
-                    View
-                  </Link>
-                  <button
-                    className={`btn btn-sm ${confirmingId === r.id ? "btn-danger-solid" : "btn-danger"}`}
-                    onClick={() => requestDelete(r.id)}
-                    disabled={deletingId === r.id}
-                  >
-                    {deletingId === r.id
-                      ? "Deleting…"
-                      : confirmingId === r.id
-                        ? "Confirm?"
-                        : "Delete"}
-                  </button>
+                  <div className="report-actions-buttons">
+                    <Link className="btn btn-secondary btn-sm" href={`/reports/${r.id}`}>
+                      View
+                    </Link>
+                    <button
+                      className={`btn btn-sm ${confirmingId === r.id ? "btn-danger-solid" : "btn-danger"}`}
+                      onClick={() => requestDelete(r.id)}
+                      disabled={deletingId === r.id}
+                    >
+                      {deletingId === r.id
+                        ? "Deleting…"
+                        : confirmingId === r.id
+                          ? "Confirm?"
+                          : "Delete"}
+                    </button>
+                  </div>
                 </div>
               </div>
             ))

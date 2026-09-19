@@ -628,6 +628,21 @@ select:focus {
   font-weight: 600;
 }
 
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+}
+
+.report-actions-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+  border-left: 1px solid var(--panel-border);
+}
+
 .checks-table th {
   text-align: left;
   color: var(--text-dim);
