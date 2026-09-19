@@ -103,7 +103,10 @@ export default function PoliciesPage() {
               custom.map((p) => (
                 <div className="policy-card" key={p.id}>
                   <div className="policy-card-info">
-                    <div style={{ fontWeight: 600 }}>{p.name}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {p.name}
+                      <span className="pill">v{p.version}</span>
+                    </div>
                     <div className="policy-card-meta">
                       {p.headers.length} header rule{p.headers.length === 1 ? "" : "s"}
                       {p.description ? ` — ${p.description}` : ""}

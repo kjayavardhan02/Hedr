@@ -1,4 +1,4 @@
-import type { ScanResult } from "@/lib/types";
+import type { HeaderFinding } from "@/lib/types";
 import { ScoreRing } from "./ScoreRing";
 
 function takeaway(grade: string, failCount: number): string {
@@ -9,7 +9,18 @@ function takeaway(grade: string, failCount: number): string {
   return "Needs attention — several checks failed against the policy.";
 }
 
-export function ScoreHero({ result }: { result: ScanResult }) {
+// Loose enough to accept both a live ScanResult and a saved ScanReport -
+// this component only ever needs these fields from either shape.
+interface ScoreHeroData {
+  score: number;
+  grade: string;
+  policy_name: string;
+  target: string | null;
+  fetched_status_code: number | null;
+  findings: HeaderFinding[];
+}
+
+export function ScoreHero({ result }: { result: ScoreHeroData }) {
   const passCount = result.findings.filter((f) => f.status === "PASS").length;
   const failCount = result.findings.filter((f) => f.status === "FAIL").length;
 

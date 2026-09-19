@@ -21,6 +21,7 @@ export default function ScanPage() {
   const [inputMode, setInputMode] = useState<"url" | "raw">("url");
   const [url, setUrl] = useState("");
   const [rawResponse, setRawResponse] = useState("");
+  const [targetName, setTargetName] = useState("");
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [policySource, setPolicySource] = useState<"saved" | "adhoc">("saved");
@@ -79,12 +80,14 @@ export default function ScanPage() {
               source: inputMode,
               url: inputMode === "url" ? url.trim() : undefined,
               raw_response: inputMode === "raw" ? rawResponse : undefined,
+              target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
               policy_id: selectedPolicyId,
             }
           : {
               source: inputMode,
               url: inputMode === "url" ? url.trim() : undefined,
               raw_response: inputMode === "raw" ? rawResponse : undefined,
+              target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
               policy: {
                 name: adhocName || "Ad-hoc Policy",
                 description: "",
@@ -139,23 +142,37 @@ export default function ScanPage() {
             </span>
           </div>
         ) : (
-          <div className="field fade-in" key="raw-field">
-            <label>Raw response / headers</label>
-            <textarea
-              rows={10}
-              placeholder={EXAMPLE_RAW}
-              value={rawResponse}
-              onChange={(e) => setRawResponse(e.target.value)}
-              className="mono"
-            />
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              style={{ alignSelf: "flex-start" }}
-              onClick={() => setRawResponse(EXAMPLE_RAW)}
-            >
-              Fill example
-            </button>
+          <div className="fade-in" key="raw-field">
+            <div className="field">
+              <label>Target name (optional)</label>
+              <input
+                placeholder="e.g. My Staging Site"
+                value={targetName}
+                onChange={(e) => setTargetName(e.target.value)}
+              />
+              <span className="field-hint">
+                There&apos;s no URL to label a pasted response with. Give it a name, or
+                leave this blank to use &quot;HTTP Response Scan&quot;.
+              </span>
+            </div>
+            <div className="field">
+              <label>Raw response / headers</label>
+              <textarea
+                rows={10}
+                placeholder={EXAMPLE_RAW}
+                value={rawResponse}
+                onChange={(e) => setRawResponse(e.target.value)}
+                className="mono"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ alignSelf: "flex-start" }}
+                onClick={() => setRawResponse(EXAMPLE_RAW)}
+              >
+                Fill example
+              </button>
+            </div>
           </div>
         )}
       </div>

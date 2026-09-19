@@ -31,6 +31,46 @@ def test_scan_raw_with_inline_policy(auth_client):
     assert len(body["findings"]) == 2
 
 
+def test_scan_raw_without_target_name_defaults(auth_client):
+    client, _ = auth_client
+    resp = client.post(
+        "/api/scan",
+        json={"source": "raw", "raw_response": RAW_RESPONSE, "policy": INLINE_POLICY},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["target"] == "HTTP Response Scan"
+
+
+def test_scan_raw_with_target_name_uses_it(auth_client):
+    client, _ = auth_client
+    resp = client.post(
+        "/api/scan",
+        json={
+            "source": "raw",
+            "raw_response": RAW_RESPONSE,
+            "target_name": "My Staging Site",
+            "policy": INLINE_POLICY,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["target"] == "My Staging Site"
+
+
+def test_scan_raw_blank_target_name_defaults(auth_client):
+    client, _ = auth_client
+    resp = client.post(
+        "/api/scan",
+        json={
+            "source": "raw",
+            "raw_response": RAW_RESPONSE,
+            "target_name": "   ",
+            "policy": INLINE_POLICY,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["target"] == "HTTP Response Scan"
+
+
 def test_scan_raw_missing_raw_response_422(auth_client):
     client, _ = auth_client
     resp = client.post("/api/scan", json={"source": "raw", "policy": INLINE_POLICY})
@@ -101,6 +141,32 @@ def test_scan_url_source_success(auth_client, monkeypatch):
     body = resp.json()
     assert body["target"] == "https://example.com/"
     assert body["score"] == 100.0
+
+
+def test_scan_url_source_ignores_target_name(auth_client, monkeypatch):
+    client, _ = auth_client
+    monkeypatch.setattr(
+        scan_router,
+        "fetch_headers",
+        lambda url: FetchResult(
+            status_code=200,
+            headers={"x-frame-options": "DENY", "x-content-type-options": "nosniff"},
+            final_url="https://example.com/",
+        ),
+    )
+    resp = client.post(
+        "/api/scan",
+        json={
+            "source": "url",
+            "url": "example.com",
+            "target_name": "Ignored Name",
+            "policy": INLINE_POLICY,
+        },
+    )
+    assert resp.status_code == 200
+    # target_name only applies to source=raw - a URL scan's target is
+    # always the actual fetched URL.
+    assert resp.json()["target"] == "https://example.com/"
 
 
 def test_scan_url_source_ssrf_blocked_returns_400(auth_client, monkeypatch):

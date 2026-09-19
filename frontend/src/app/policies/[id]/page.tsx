@@ -85,6 +85,7 @@ export default function EditPolicyPage() {
       <BackLink />
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>
         {readOnly ? "View Baseline" : "Edit Policy"}
+        <span className="pill">v{policy.version}</span>
       </h1>
       {readOnly && (
         <p className="field-hint" style={{ marginBottom: 20 }}>

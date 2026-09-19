@@ -25,6 +25,7 @@ def test_create_policy(auth_client):
     assert body["name"] == "My Policy"
     assert body["is_baseline"] is False
     assert body["owner_id"] == user["id"]
+    assert body["version"] == 1
     assert body["id"]
 
 
@@ -63,6 +64,33 @@ def test_update_policy(auth_client):
     )
     assert resp.status_code == 200
     assert resp.json()["name"] == "After"
+
+
+def test_update_increments_version_each_time(auth_client):
+    client, _ = auth_client
+    create = client.post("/api/policies", json=POLICY_PAYLOAD)
+    policy_id = create.json()["id"]
+    assert create.json()["version"] == 1
+
+    edit_payload = {
+        "name": "After",
+        "description": "updated",
+        "headers": [{"header_name": "X-Frame-Options", "expected_value": "SAMEORIGIN", "required": True}],
+    }
+    first_edit = client.put(f"/api/policies/{policy_id}", json=edit_payload)
+    assert first_edit.json()["version"] == 2
+
+    second_edit = client.put(f"/api/policies/{policy_id}", json=edit_payload)
+    assert second_edit.json()["version"] == 3
+
+    # Confirm it's persisted, not just returned once.
+    assert client.get(f"/api/policies/{policy_id}").json()["version"] == 3
+
+
+def test_baseline_version_never_changes(auth_client):
+    client, _ = auth_client
+    baseline = client.get("/api/policies/baselines").json()[0]
+    assert baseline["version"] == 1
 
 
 def test_update_baseline_policy_forbidden(auth_client):

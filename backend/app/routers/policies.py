@@ -93,6 +93,7 @@ def update_policy(
     policy.name = payload.name
     policy.description = payload.description
     policy.headers = [h.model_dump() for h in payload.headers]
+    policy.version += 1
     db.commit()
     db.refresh(policy)
     return policy

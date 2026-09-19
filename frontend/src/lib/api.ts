@@ -6,6 +6,8 @@ import type {
   Policy,
   PolicyCreatePayload,
   RegisterPayload,
+  ScanReport,
+  ScanReportSummary,
   ScanRequestPayload,
   ScanResult,
   User,
@@ -92,4 +94,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  listReports: () => request<ScanReportSummary[]>("/api/reports"),
+  getReport: (id: string) => request<ScanReport>(`/api/reports/${id}`),
+  deleteReport: (id: string) => request<void>(`/api/reports/${id}`, { method: "DELETE" }),
 };

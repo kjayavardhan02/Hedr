@@ -46,6 +46,21 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+  {
+    href: "/reports",
+    label: "Reports",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path
+          d="M6 3.5h9l3.5 3.5V20a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5Z"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+        <path d="M8.5 12h7M8.5 15.5h7M8.5 8.5h3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    ),
+  },
 ];
 
 function initials(firstName: string, lastName: string): string {
@@ -145,7 +160,9 @@ export function Sidebar() {
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) => {
             const active =
-              item.href === "/policies" ? pathname?.startsWith("/policies") : pathname === item.href;
+              item.href === "/policies" || item.href === "/reports"
+                ? pathname?.startsWith(item.href)
+                : pathname === item.href;
             return (
               <Link key={item.href} href={item.href} className={`sidebar-link ${active ? "active" : ""}`}>
                 {item.icon}

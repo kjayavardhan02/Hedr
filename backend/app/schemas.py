@@ -74,6 +74,7 @@ class PolicyOut(BaseModel):
     is_baseline: bool
     baseline_key: str | None = None
     owner_id: str | None = None
+    version: int
     created_at: datetime
     updated_at: datetime
 
@@ -95,6 +96,9 @@ class ScanRequest(BaseModel):
     source: ScanSource
     url: str | None = Field(default=None, max_length=2000)
     raw_response: str | None = Field(default=None, max_length=200_000)
+    # Only meaningful for source=raw, where there's no URL to label the
+    # target with. Optional - defaults to "HTTP Response Scan" if omitted.
+    target_name: str | None = Field(default=None, max_length=200)
     policy_id: str | None = None
     policy: PolicyCreate | None = None
 
@@ -150,6 +154,50 @@ class ScanResult(BaseModel):
     csp_finding: CSPFinding | None = None
     raw_headers: dict[str, str]
     scanned_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Saved scan reports
+#
+# Deliberately narrower than ScanResult: no raw_headers and no max_score.
+# A report only ever stores findings for headers the policy actually named
+# (see models.ScanReport for why), so there is nothing else to expose here.
+# ---------------------------------------------------------------------------
+
+
+class ScanReportSummary(BaseModel):
+    id: str
+    scan_number: int
+    policy_name: str
+    policy_version: str
+    source: ScanSource
+    target: str | None
+    headers_evaluated: int
+    score: float
+    grade: str
+    scanned_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ScanReportOut(BaseModel):
+    id: str
+    scan_number: int
+    policy_name: str
+    policy_version: str
+    source: ScanSource
+    target: str | None
+    fetched_status_code: int | None = None
+    headers_evaluated: int
+    score: float
+    grade: str
+    findings: list[HeaderFinding]
+    csp_finding: CSPFinding | None = None
+    scanned_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # ---------------------------------------------------------------------------

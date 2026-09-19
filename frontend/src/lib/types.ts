@@ -34,6 +34,7 @@ export interface Policy {
   is_baseline: boolean;
   baseline_key: string | null;
   owner_id: string | null;
+  version: number;
   created_at: string;
   updated_at: string;
 }
@@ -90,10 +91,40 @@ export interface ScanResult {
   scanned_at: string;
 }
 
+export interface ScanReportSummary {
+  id: string;
+  scan_number: number;
+  policy_name: string;
+  policy_version: string;
+  source: "url" | "raw";
+  target: string | null;
+  headers_evaluated: number;
+  score: number;
+  grade: string;
+  scanned_at: string;
+}
+
+export interface ScanReport {
+  id: string;
+  scan_number: number;
+  policy_name: string;
+  policy_version: string;
+  source: "url" | "raw";
+  target: string | null;
+  fetched_status_code: number | null;
+  headers_evaluated: number;
+  score: number;
+  grade: string;
+  findings: HeaderFinding[];
+  csp_finding: CSPFinding | null;
+  scanned_at: string;
+}
+
 export interface ScanRequestPayload {
   source: "url" | "raw";
   url?: string;
   raw_response?: string;
+  target_name?: string;
   policy_id?: string;
   policy?: PolicyCreatePayload;
 }
