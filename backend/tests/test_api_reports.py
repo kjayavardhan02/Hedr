@@ -123,6 +123,68 @@ class TestScanCreatesReport:
 
         assert detail["csp_finding"] is None
 
+    def test_adhoc_scan_report_has_null_policy_id(self, auth_client):
+        client, _ = auth_client
+        run_scan(client)
+        summary = client.get("/api/reports").json()[0]
+        assert summary["policy_id"] is None
+        detail = client.get(f"/api/reports/{summary['id']}").json()
+        assert detail["policy_id"] is None
+
+    def test_saved_policy_scan_report_stores_policy_id(self, auth_client):
+        client, _ = auth_client
+        create = client.post(
+            "/api/policies",
+            json={
+                "name": "Linked Policy",
+                "description": "",
+                "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
+            },
+        )
+        policy_id = create.json()["id"]
+        client.post(
+            "/api/scan",
+            json={
+                "source": "raw",
+                "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "policy_id": policy_id,
+            },
+        )
+        summary = client.get("/api/reports").json()[0]
+        assert summary["policy_id"] == policy_id
+        detail = client.get(f"/api/reports/{summary['id']}").json()
+        assert detail["policy_id"] == policy_id
+
+    def test_report_keeps_policy_id_after_the_policy_is_deleted(self, auth_client):
+        client, _ = auth_client
+        create = client.post(
+            "/api/policies",
+            json={
+                "name": "Doomed Policy",
+                "description": "",
+                "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}],
+            },
+        )
+        policy_id = create.json()["id"]
+        client.post(
+            "/api/scan",
+            json={
+                "source": "raw",
+                "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "policy_id": policy_id,
+            },
+        )
+        report_id = client.get("/api/reports").json()[0]["id"]
+
+        assert client.delete(f"/api/policies/{policy_id}").status_code == 204
+
+        # The report keeps its historical policy_id even though the policy
+        # is gone - it's the caller's job to notice the 404 below and treat
+        # the link as dead, not the report's.
+        detail = client.get(f"/api/reports/{report_id}").json()
+        assert detail["policy_id"] == policy_id
+        assert client.get(f"/api/policies/{policy_id}").status_code == 404
+
     def test_report_snapshots_the_saved_policys_current_version(self, auth_client):
         client, _ = auth_client
         create = client.post(

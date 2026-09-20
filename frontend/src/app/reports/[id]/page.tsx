@@ -3,20 +3,40 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { ScanReport } from "@/lib/types";
+import type { Policy, ScanReport } from "@/lib/types";
 import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { BackLink } from "@/components/BackLink";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
+import { useToast } from "@/components/Toast";
+import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 
 export default function ReportDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const toast = useToast();
 
   const [report, setReport] = useState<ScanReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewPolicy, setPreviewPolicy] = useState<Policy | null>(null);
+
+  async function openPolicy(policyId: string) {
+    try {
+      const policy = await api.getPolicy(policyId);
+      setPreviewPolicy(policy);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        toast.show(
+          "This policy no longer exists — it may have been deleted since this scan.",
+          "error"
+        );
+      } else {
+        toast.show(e instanceof ApiError ? e.message : "Couldn't open this policy.", "error");
+      }
+    }
+  }
 
   useEffect(() => {
     api
@@ -48,8 +68,20 @@ export default function ReportDetailPage() {
     <div className="container">
       <BackLink href="/reports" label="Back to Reports" />
       <p className="field-hint" style={{ marginBottom: 12 }}>
-        Scan #{report.scan_number} · Policy version {report.policy_version} ·{" "}
-        {report.headers_evaluated} header{report.headers_evaluated === 1 ? "" : "s"} evaluated
+        Scan #{report.scan_number} ·{" "}
+        {report.policy_id ? (
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => void openPolicy(report.policy_id as string)}
+          >
+            {report.policy_name}
+          </button>
+        ) : (
+          report.policy_name
+        )}{" "}
+        ({report.policy_version}) · {report.headers_evaluated} header
+        {report.headers_evaluated === 1 ? "" : "s"} evaluated
       </p>
       <ScoreHero result={report} />
 
@@ -64,6 +96,10 @@ export default function ReportDetailPage() {
       </div>
 
       {report.csp_finding && <CSPPanel csp={report.csp_finding} />}
+
+      {previewPolicy && (
+        <PolicyPreviewModal policy={previewPolicy} onClose={() => setPreviewPolicy(null)} />
+      )}
     </div>
   );
 }

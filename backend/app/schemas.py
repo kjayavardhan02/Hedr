@@ -168,6 +168,11 @@ class ScanResult(BaseModel):
 class ScanReportSummary(BaseModel):
     id: str
     scan_number: int
+    # The Policy id used at scan time, or null for an ad-hoc policy. This is
+    # the historical value as stored - it is NOT re-checked for existence
+    # here. Callers that want to link to the policy should attempt
+    # GET /api/policies/{policy_id} and fall back gracefully on a 404.
+    policy_id: str | None
     policy_name: str
     policy_version: str
     source: ScanSource
@@ -184,6 +189,7 @@ class ScanReportSummary(BaseModel):
 class ScanReportOut(BaseModel):
     id: str
     scan_number: int
+    policy_id: str | None
     policy_name: str
     policy_version: str
     source: ScanSource

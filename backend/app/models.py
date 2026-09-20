@@ -68,6 +68,12 @@ class ScanReport(Base):
     # creation time rather than a row count, so deleting a report never
     # causes a later scan to reuse a number that's still in use elsewhere.
     scan_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The id of the Policy used for this scan, or null for an ad-hoc policy.
+    # Deliberately not a ForeignKey - this is a historical pointer, not a
+    # live relationship. Deleting the policy later must NOT touch this row;
+    # the frontend re-checks GET /api/policies/{id} to see if it still
+    # resolves before treating it as a working link.
+    policy_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     policy_name: Mapped[str] = mapped_column(String, nullable=False)
     # No real policy versioning exists yet - every report is stamped "v1"
     # until that's built, so the column already exists when it is.

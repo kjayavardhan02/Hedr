@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
-import type { ScanReportSummary } from "@/lib/types";
+import type { Policy, ScanReportSummary } from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
+import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 
 function gradeBadgeClass(grade: string): string {
   if (grade === "A" || grade === "B") return "badge-PASS";
@@ -27,6 +28,7 @@ export default function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [previewPolicy, setPreviewPolicy] = useState<Policy | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function load() {
@@ -50,6 +52,22 @@ export default function ReportsPage() {
     setConfirmingId(id);
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
     confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000);
+  }
+
+  async function openPolicy(policyId: string) {
+    try {
+      const policy = await api.getPolicy(policyId);
+      setPreviewPolicy(policy);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        toast.show(
+          "This policy no longer exists — it may have been deleted since this scan.",
+          "error"
+        );
+      } else {
+        toast.show(e instanceof ApiError ? e.message : "Couldn't open this policy.", "error");
+      }
+    }
   }
 
   async function performDelete(id: string) {
@@ -101,7 +119,18 @@ export default function ReportsPage() {
                     </span>
                   </div>
                   <div className="policy-card-meta">
-                    {r.policy_name} <span className="report-version-pill">{r.policy_version}</span>
+                    {r.policy_id ? (
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => void openPolicy(r.policy_id as string)}
+                      >
+                        {r.policy_name}
+                      </button>
+                    ) : (
+                      r.policy_name
+                    )}{" "}
+                    <span className="report-version-pill">{r.policy_version}</span>
                     {" · "}
                     {formatDate(r.scanned_at)}
                     {" · "}
@@ -133,6 +162,10 @@ export default function ReportsPage() {
             ))
           )}
         </div>
+      )}
+
+      {previewPolicy && (
+        <PolicyPreviewModal policy={previewPolicy} onClose={() => setPreviewPolicy(null)} />
       )}
     </div>
   );

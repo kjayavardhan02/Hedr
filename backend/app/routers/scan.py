@@ -55,6 +55,7 @@ def scan(
     policy_headers: list[PolicyHeaderIn]
     policy_name: str
     policy_version: str
+    used_policy_id: str | None
 
     if payload.policy_id:
         policy = db.get(models.Policy, payload.policy_id)
@@ -63,6 +64,7 @@ def scan(
         policy_headers = [PolicyHeaderIn(**h) for h in policy.headers]
         policy_name = policy.name
         policy_version = f"v{policy.version}"
+        used_policy_id = policy.id
     elif payload.policy:
         if not payload.policy.headers:
             raise HTTPException(status_code=422, detail="Inline policy must include at least one header.")
@@ -71,6 +73,7 @@ def scan(
         # Ad-hoc policies aren't saved anywhere, so "v1" would falsely
         # imply a version history that doesn't exist - label it plainly.
         policy_version = "ad-hoc"
+        used_policy_id = None
     else:
         raise HTTPException(status_code=422, detail="Either policy_id or policy must be provided.")
 
@@ -96,6 +99,7 @@ def scan(
         report = models.ScanReport(
             owner_id=current_user.id,
             scan_number=(last_scan_number or 0) + 1,
+            policy_id=used_policy_id,
             policy_name=scan_result.policy_name,
             policy_version=policy_version,
             source=scan_result.source.value,

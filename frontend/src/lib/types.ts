@@ -94,6 +94,7 @@ export interface ScanResult {
 export interface ScanReportSummary {
   id: string;
   scan_number: number;
+  policy_id: string | null;
   policy_name: string;
   policy_version: string;
   source: "url" | "raw";
@@ -107,6 +108,7 @@ export interface ScanReportSummary {
 export interface ScanReport {
   id: string;
   scan_number: number;
+  policy_id: string | null;
   policy_name: string;
   policy_version: string;
   source: "url" | "raw";
