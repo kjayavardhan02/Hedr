@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { Policy, PolicyHeader, ScanResult } from "@/lib/types";
+import { ExportMenu } from "@/components/ExportMenu";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
 import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
@@ -237,6 +238,9 @@ export default function ScanPage() {
 
       {result && (
         <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <ExportMenu data={result} />
+          </div>
           <ScoreHero result={result} />
 
           <div className="panel fade-in-up" style={{ animationDelay: "40ms" }}>

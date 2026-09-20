@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { Policy, ScanReport } from "@/lib/types";
+import { ExportMenu } from "@/components/ExportMenu";
 import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
@@ -67,22 +68,34 @@ export default function ReportDetailPage() {
   return (
     <div className="container">
       <BackLink href="/reports" label="Back to Reports" />
-      <p className="field-hint" style={{ marginBottom: 12 }}>
-        Scan #{report.scan_number} ·{" "}
-        {report.policy_id ? (
-          <button
-            type="button"
-            className="link-button"
-            onClick={() => void openPolicy(report.policy_id as string)}
-          >
-            {report.policy_name}
-          </button>
-        ) : (
-          report.policy_name
-        )}{" "}
-        ({report.policy_version}) · {report.headers_evaluated} header
-        {report.headers_evaluated === 1 ? "" : "s"} evaluated
-      </p>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+          marginBottom: 12,
+        }}
+      >
+        <p className="field-hint" style={{ margin: 0 }}>
+          Scan #{report.scan_number} ·{" "}
+          {report.policy_id ? (
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => void openPolicy(report.policy_id as string)}
+            >
+              {report.policy_name}
+            </button>
+          ) : (
+            report.policy_name
+          )}{" "}
+          ({report.policy_version}) · {report.headers_evaluated} header
+          {report.headers_evaluated === 1 ? "" : "s"} evaluated
+        </p>
+        <ExportMenu data={report} />
+      </div>
       <ScoreHero result={report} />
 
       <div className="panel fade-in-up" style={{ marginTop: 16, animationDelay: "40ms" }}>
