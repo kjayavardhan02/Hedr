@@ -207,6 +207,73 @@ class ScanReportOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Dashboard summary
+# ---------------------------------------------------------------------------
+
+
+class DashboardReportsInfo(BaseModel):
+    total: int
+
+
+class DashboardPoliciesInfo(BaseModel):
+    total: int
+
+
+class DashboardBaselinesInfo(BaseModel):
+    total: int
+
+
+class DashboardScan(BaseModel):
+    """Shared shape for the dashboard's latest-scan panel and its recent-scans
+    list. `passed`/`failed` count only the header findings, the same way the
+    live scan/report pages already do (see ScoreHero) - never the CSP
+    finding, which has no single pass/fail state of its own."""
+
+    id: str
+    scan_number: int
+    policy_id: str | None
+    policy_name: str
+    policy_version: str
+    source: ScanSource
+    target: str | None
+    score: float
+    grade: str
+    passed: int
+    failed: int
+    scanned_at: datetime
+
+
+class DashboardRecentPolicy(BaseModel):
+    id: str
+    name: str
+    version: int
+    header_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class DashboardFindings(BaseModel):
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class DashboardSummary(BaseModel):
+    reports: DashboardReportsInfo
+    policies: DashboardPoliciesInfo
+    baselines: DashboardBaselinesInfo
+    # Both null together when the user has no saved reports yet.
+    average_score: float | None
+    average_grade: str | None
+    latest_scan: DashboardScan | None
+    recent_scans: list[DashboardScan]
+    # Scoped to ALL of the user's saved reports, not just recent_scans.
+    findings: DashboardFindings
+    recent_policies: list[DashboardRecentPolicy]
+
+
+# ---------------------------------------------------------------------------
 # AI Explanation (deterministic engine decides PASS/FAIL - AI only explains)
 # ---------------------------------------------------------------------------
 

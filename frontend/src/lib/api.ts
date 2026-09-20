@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  DashboardSummary,
   ExplainRequestPayload,
   ExplainResponse,
   LoginPayload,
@@ -97,4 +98,5 @@ export const api = {
   listReports: () => request<ScanReportSummary[]>("/api/reports"),
   getReport: (id: string) => request<ScanReport>(`/api/reports/${id}`),
   deleteReport: (id: string) => request<void>(`/api/reports/${id}`, { method: "DELETE" }),
+  getDashboardSummary: () => request<DashboardSummary>("/api/dashboard/summary"),
 };

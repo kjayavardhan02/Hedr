@@ -131,6 +131,49 @@ export interface ScanRequestPayload {
   policy?: PolicyCreatePayload;
 }
 
+export interface DashboardScan {
+  id: string;
+  scan_number: number;
+  policy_id: string | null;
+  policy_name: string;
+  policy_version: string;
+  source: "url" | "raw";
+  target: string | null;
+  score: number;
+  grade: string;
+  passed: number;
+  failed: number;
+  scanned_at: string;
+}
+
+export interface DashboardRecentPolicy {
+  id: string;
+  name: string;
+  version: number;
+  header_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DashboardFindings {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+export interface DashboardSummary {
+  reports: { total: number };
+  policies: { total: number };
+  baselines: { total: number };
+  average_score: number | null;
+  average_grade: string | null;
+  latest_scan: DashboardScan | null;
+  recent_scans: DashboardScan[];
+  findings: DashboardFindings;
+  recent_policies: DashboardRecentPolicy[];
+}
+
 export interface ApiErrorBody {
   detail: string;
 }

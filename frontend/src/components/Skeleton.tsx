@@ -16,6 +16,36 @@ export function PolicyCardSkeleton() {
   );
 }
 
+export function DashboardSkeleton() {
+  return (
+    <>
+      <div className="panel">
+        <Skeleton height={22} width="220px" />
+        <div style={{ marginTop: 8 }}>
+          <Skeleton height={13} width="60%" />
+        </div>
+      </div>
+      <div className="row" style={{ marginTop: 16 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div className="panel" style={{ flex: "1 1 200px" }} key={i}>
+            <Skeleton height={12} width="70px" />
+            <div style={{ marginTop: 8 }}>
+              <Skeleton height={26} width="50px" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="panel" style={{ marginTop: 16 }}>
+        <Skeleton height={110} />
+      </div>
+      <div className="panel" style={{ marginTop: 16 }}>
+        <PolicyCardSkeleton />
+        <PolicyCardSkeleton />
+      </div>
+    </>
+  );
+}
+
 export function PolicyFormSkeleton() {
   return (
     <div className="panel">
