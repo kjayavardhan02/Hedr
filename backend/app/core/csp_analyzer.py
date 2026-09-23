@@ -22,7 +22,6 @@ import re
 from app.core.csp_findings import CSPFindingId, severity_for
 from app.schemas import CheckResult, CSPDirectiveRule, CSPPolicy, Status
 
-DANGEROUS_SCRIPT_STYLE_KEYWORDS = {"unsafe-inline", "unsafe-eval"}
 FETCH_DIRECTIVES_TO_CHECK_FOR_WILDCARD = {
     "default-src",
     "script-src",
