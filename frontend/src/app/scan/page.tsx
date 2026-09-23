@@ -1,5 +1,6 @@
 "use client";
 
+import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { CSPPolicy, Policy, PolicyHeader, ScanResult } from "@/lib/types";
@@ -71,6 +72,11 @@ export default function ScanPage() {
       const cleaned = adhocHeaders.filter((h) => h.header_name.trim());
       if (cleaned.length === 0 && !adhocCspPolicy) {
         setError("Add at least one header or configure a CSP policy for the ad-hoc policy.");
+        return;
+      }
+      const duplicates = duplicateHeaderNames(cleaned);
+      if (duplicates.length > 0) {
+        setError(duplicateHeaderMessage(duplicates));
         return;
       }
     }

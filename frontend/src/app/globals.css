@@ -1272,6 +1272,10 @@ select:focus {
   font-weight: 600;
 }
 
+.header-row-duplicate {
+  border-color: var(--fail);
+}
+
 /* --- Structured header value controls (policy builder) ------------------ */
 
 .hv-controls {

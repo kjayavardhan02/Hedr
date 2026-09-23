@@ -322,7 +322,8 @@ export interface DashboardSummary {
 }
 
 export interface ApiErrorBody {
-  detail: string;
+  // A plain message, or a list of validation errors from request-schema checks.
+  detail: string | { msg?: string }[];
 }
 
 export interface ExplainRequestPayload {

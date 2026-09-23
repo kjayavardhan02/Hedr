@@ -1,5 +1,6 @@
 "use client";
 
+import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -50,6 +51,11 @@ function NewPolicyForm() {
     const cleaned = headers.filter((h) => h.header_name.trim());
     if (cleaned.length === 0 && !cspPolicy) {
       setError("Add at least one header rule or configure a CSP policy.");
+      return;
+    }
+    const duplicates = duplicateHeaderNames(cleaned);
+    if (duplicates.length > 0) {
+      setError(duplicateHeaderMessage(duplicates));
       return;
     }
     setSaving(true);

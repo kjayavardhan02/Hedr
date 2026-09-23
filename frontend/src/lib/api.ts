@@ -42,7 +42,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let message = res.statusText;
     try {
       const body = (await res.json()) as ApiErrorBody;
-      if (body?.detail) message = body.detail;
+      if (typeof body?.detail === "string") message = body.detail;
+      else if (Array.isArray(body?.detail)) {
+        // Schema-validation errors arrive as a list of {msg}; show just the text.
+        message = body.detail
+          .map((d) => (d.msg ?? "").replace(/^Value error, /, ""))
+          .filter(Boolean)
+          .join(" ") || message;
+      }
     } catch {
       // ignore - body wasn't JSON
     }

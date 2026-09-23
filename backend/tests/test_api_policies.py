@@ -221,6 +221,64 @@ class TestCspPolicy:
         assert resp.status_code == 422
 
 
+class TestDuplicateHeaderRules:
+    def _payload(self, headers):
+        return {"name": "Dupes", "description": "", "headers": headers}
+
+    @staticmethod
+    def _hsts(value="max-age=100"):
+        return {"header_name": "Strict-Transport-Security", "expected_value": value, "required": True}
+
+    def _detail_text(self, resp):
+        return " ".join(e["msg"] for e in resp.json()["detail"])
+
+    def test_exact_duplicate_rejected_on_create(self, auth_client):
+        client, _ = auth_client
+        resp = client.post("/api/policies", json=self._payload([self._hsts(), self._hsts("max-age=200")]))
+        assert resp.status_code == 422
+        assert "Strict-Transport-Security" in self._detail_text(resp)
+
+    def test_duplicate_is_case_and_whitespace_insensitive(self, auth_client):
+        client, _ = auth_client
+        headers = [self._hsts(), {**self._hsts(), "header_name": "  strict-transport-security "}]
+        assert client.post("/api/policies", json=self._payload(headers)).status_code == 422
+
+    def test_each_repeated_header_is_named_once(self, auth_client):
+        client, _ = auth_client
+        xfo = {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}
+        headers = [self._hsts(), xfo, self._hsts(), xfo, self._hsts()]
+        text = self._detail_text(client.post("/api/policies", json=self._payload(headers)))
+        assert text.count("Strict-Transport-Security") == 1
+        assert text.count("X-Frame-Options") == 1
+
+    def test_distinct_headers_are_fine(self, auth_client):
+        client, _ = auth_client
+        xfo = {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}
+        assert client.post("/api/policies", json=self._payload([self._hsts(), xfo])).status_code == 201
+
+    def test_duplicate_rejected_on_update(self, auth_client):
+        client, _ = auth_client
+        created = client.post("/api/policies", json=self._payload([self._hsts()])).json()
+        resp = client.put(
+            f"/api/policies/{created['id']}",
+            json=self._payload([self._hsts(), self._hsts("max-age=5")]),
+        )
+        assert resp.status_code == 422
+        assert client.get(f"/api/policies/{created['id']}").json()["version"] == 1
+
+    def test_duplicate_rejected_for_an_inline_scan_policy(self, auth_client):
+        client, _ = auth_client
+        resp = client.post(
+            "/api/scan",
+            json={
+                "source": "raw",
+                "raw_response": "HTTP/1.1 200 OK\nServer: x\n\n",
+                "policy": self._payload([self._hsts(), self._hsts()]),
+            },
+        )
+        assert resp.status_code == 422
+
+
 class TestPoliciesRequireAuth:
     def test_list_requires_auth(self, client):
         assert client.get("/api/policies").status_code == 401

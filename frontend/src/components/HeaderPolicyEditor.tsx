@@ -2,6 +2,7 @@
 
 import type { PolicyHeader } from "@/lib/types";
 import { headerKind } from "@/lib/headerValueSyntax";
+import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { HeaderValueControls } from "./HeaderValueControls";
 
 // Content-Security-Policy is deliberately not in this list - it's
@@ -58,6 +59,8 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
   const hasAcac = headers.some((h) => normalizeHeaderName(h.header_name) === ACAC_HEADER);
   const hasAcao = headers.some((h) => normalizeHeaderName(h.header_name) === ACAO_HEADER);
   const suggestAcao = hasAcac && !hasAcao;
+  const duplicates = duplicateHeaderNames(headers);
+  const duplicateKeys = new Set(duplicates.map((d) => d.toLowerCase()));
 
   return (
     <div>
@@ -74,7 +77,10 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
       )}
 
       {headers.map((h, i) => (
-        <div className="header-row" key={i}>
+        <div
+          className={`header-row ${duplicateKeys.has(normalizeHeaderName(h.header_name)) ? "header-row-duplicate" : ""}`}
+          key={i}
+        >
           <div className="field">
             <label>Header name</label>
             <input
@@ -125,6 +131,12 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
           </button>
         </div>
       ))}
+
+      {duplicates.length > 0 && (
+        <div className="error-box" role="alert">
+          {duplicateHeaderMessage(duplicates)}
+        </div>
+      )}
 
       {suggestAcao && (
         <div className="header-suggestion fade-in">

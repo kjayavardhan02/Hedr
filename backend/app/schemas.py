@@ -109,6 +109,25 @@ class PolicyCreate(BaseModel):
                 )
         return headers
 
+    @field_validator("headers")
+    @classmethod
+    def _reject_duplicate_headers(cls, headers: list[PolicyHeaderIn]) -> list[PolicyHeaderIn]:
+        # Every row is evaluated and scored independently, so a repeated
+        # header would be counted twice and can't be told apart in reports or
+        # scan comparisons. Header names are case-insensitive.
+        seen: dict[str, str] = {}
+        duplicates: list[str] = []
+        for h in headers:
+            key = h.header_name.strip().lower()
+            if key in seen and seen[key] not in duplicates:
+                duplicates.append(seen[key])
+            seen.setdefault(key, h.header_name.strip())
+        if duplicates:
+            raise ValueError(
+                "Each header can only appear once in a policy. Duplicate: " + ", ".join(duplicates) + "."
+            )
+        return headers
+
 
 class PolicyUpdate(PolicyCreate):
     pass
