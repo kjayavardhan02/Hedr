@@ -1,6 +1,6 @@
 # Hedr — Features Pending / Postponed
 
-_Last updated: 2026-09-23_
+_Last updated: 2026-09-24_
 
 Things intentionally deferred, not yet started, or explicitly postponed per earlier instructions — not bugs in what's already built.
 
@@ -10,9 +10,22 @@ Things intentionally deferred, not yet started, or explicitly postponed per earl
 
 - Multiple applications / multi-target tracking.
 - Scheduled scans.
-- Security regression detection (diffing scores/findings between scans over time) — scan history itself exists (Reports), but automatic diff/regression detection does not.
+- Security regression *alerting* and trends over time — each report now shows what changed since the previous comparable scan, but there are no trend graphs, posture timeline, or automatic regression alerts.
 - Notifications (Slack/email on regression).
 - Team accounts / multi-user (shared policies/reports across a team).
+
+## Scan comparison — deferred follow-ups
+
+- Comparison data in the PDF and JSON exports (kept out of the first pass; the comparison response already exists, so it is a small additive change).
+- Manual comparison of any two reports (a `/reports/compare` page), including across different targets or policy versions with a clear "not directly comparable" warning.
+- Score trend graphs and a security-posture timeline.
+
+## Header value normalization — follow-ups
+
+- Permissions-Policy has no "must include, extras allowed" mode (allowlists must match exactly); Cache-Control has one (`+`).
+- Built-in baselines write Permissions-Policy with `;` between features, which is not valid header syntax (real headers use commas). It is accepted, but the baseline files could be converted to commas.
+- Structured builder controls exist only for the headers with a dedicated syntax; other custom headers still use the plain text field.
+- Policies saved before duplicate-header validation may still contain a repeated header; they are not migrated and are only rejected the next time they are saved.
 
 ## CSP overhaul — judgment calls / follow-ups noted but not built
 
@@ -25,7 +38,9 @@ Things intentionally deferred, not yet started, or explicitly postponed per earl
 
 ## Hardening still outstanding
 
-- **No frontend tests** — backend has a full pytest suite (249 tests); the Next.js frontend has none (no jest/vitest configured).
+- **No frontend tests** — backend has a full pytest suite (436 tests); the Next.js frontend has none (no jest/vitest configured).
+- **API docs are public** — `/docs`, `/redoc` and `/openapi.json` are reachable without logging in. They expose only the API's shape, not data, but should be disabled or protected before deployment.
+- **Authentication is opt-in per route** (`Depends(get_current_user)` on each handler, no global guard), so a newly added endpoint is open unless someone remembers it. A router-level guard or a test that fails on any unauthenticated route would prevent that.
 - **No rate limiting** on `/api/scan` or `/api/explain` (the latter costs real money per call), or on login/register attempts (brute-force/account-creation throttling).
 - **AI prompt-injection surface** — a malicious scanned site's own header values flow into the AI explanation prompt. Can't affect the PASS/FAIL verdict or score (already computed deterministically before the AI ever sees anything), but the explanation *text* itself isn't sanitized against injection attempts.
 - No email verification or password-reset flow (needs real SMTP infra) — out of scope until this leaves localhost.
