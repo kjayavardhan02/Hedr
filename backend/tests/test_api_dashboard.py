@@ -68,16 +68,16 @@ class TestDashboardReports:
         assert summary["reports"]["total"] == 2
         assert summary["latest_scan"]["policy_name"] == "Second"
 
-    def test_recent_scans_limited_to_five_most_recent(self, auth_client):
+    def test_recent_scans_limited_to_three_most_recent(self, auth_client):
         client, _ = auth_client
         for i in range(7):
             run_scan(client, {"name": f"Scan {i}", "headers": ALL_PASS_POLICY})
 
         summary = client.get("/api/dashboard/summary").json()
         assert summary["reports"]["total"] == 7
-        assert len(summary["recent_scans"]) == 5
+        assert len(summary["recent_scans"]) == 3
         names = [s["policy_name"] for s in summary["recent_scans"]]
-        assert names == ["Scan 6", "Scan 5", "Scan 4", "Scan 3", "Scan 2"]
+        assert names == ["Scan 6", "Scan 5", "Scan 4"]
 
     def test_average_score_is_mean_of_final_scores_not_zero_when_empty(self, auth_client):
         client, _ = auth_client
@@ -175,13 +175,13 @@ class TestDashboardFindingsSeverity:
         summary = client.get("/api/dashboard/summary").json()
         assert summary["findings"] == {"critical": 0, "high": 1, "medium": 1, "low": 1}
 
-    def test_only_recent_five_scans_shown_but_findings_cover_everything(self, auth_client):
+    def test_only_recent_three_scans_shown_but_findings_cover_everything(self, auth_client):
         client, _ = auth_client
         for _ in range(6):
             run_scan(client, {"name": "High fail", "headers": HIGH_SEVERITY_FAIL})
 
         summary = client.get("/api/dashboard/summary").json()
-        assert len(summary["recent_scans"]) == 5
+        assert len(summary["recent_scans"]) == 3
         assert summary["findings"]["high"] == 6
 
     def test_latest_scan_findings_scoped_to_that_scan_only(self, auth_client):
@@ -217,7 +217,7 @@ class TestDashboardPolicies:
         )
 
         summary = client.get("/api/dashboard/summary").json()
-        assert len(summary["recent_policies"]) == 4
+        assert len(summary["recent_policies"]) == 3
         assert summary["recent_policies"][0]["id"] == first_created["id"]
         assert summary["recent_policies"][0]["version"] == 2
 

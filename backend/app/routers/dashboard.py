@@ -20,8 +20,8 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 # The dashboard is an overview, not a second Reports/Policies page - these
 # caps deliberately keep it to a small, glanceable slice of the user's data.
-RECENT_SCANS_LIMIT = 5
-RECENT_POLICIES_LIMIT = 4
+RECENT_SCANS_LIMIT = 3
+RECENT_POLICIES_LIMIT = 3
 
 # Only these severities are shown on the findings summary (matches the
 # product spec's Critical/High/Medium/Low table). Anything else - e.g. the
