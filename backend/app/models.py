@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import TypeDecorator
 
 from app.database import Base
 
@@ -15,6 +16,27 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class UTCDateTime(TypeDecorator):
+    """SQLite has no timezone-aware datetime type - a tz-aware value written
+    via plain DateTime comes back on read stripped to naive, which then
+    serializes to JSON with no offset and gets misread as local time by the
+    browser (e.g. a UTC timestamp read as IST, ~5.5h off). This re-attaches
+    UTC on the way out so every API response is unambiguous."""
+
+    impl = DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value: datetime | None, dialect):
+        if value is not None and value.tzinfo is not None:
+            value = value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+
+    def process_result_value(self, value: datetime | None, dialect):
+        if value is not None and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -23,7 +45,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     last_name: Mapped[str] = mapped_column(String, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
 
 
 class Policy(Base):
@@ -32,8 +54,13 @@ class Policy(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
-    # List[{"header_name": str, "expected_value": str, "required": bool}]
+    # List[{"header_name": str, "expected_value": str, "required": bool}].
+    # Never contains a Content-Security-Policy entry - CSP is configured
+    # separately below, since it needs a structured rule set rather than one
+    # opaque expected-value string (see schemas.CSPPolicy).
     headers: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # CSPPolicy-shaped dict, or null when this policy doesn't evaluate CSP.
+    csp_policy: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     is_baseline: Mapped[bool] = mapped_column(Boolean, default=False)
     baseline_key: Mapped[str | None] = mapped_column(String, nullable=True)
     # Null for baseline policies (shared/global). Every custom policy is
@@ -45,9 +72,9 @@ class Policy(Base):
     # Starts at 1 on creation, incremented on every successful edit. Never
     # reset or diffed against content - each saved edit is a new version.
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=_now, onupdate=_now
+        UTCDateTime, default=_now, onupdate=_now
     )
 
 
@@ -88,7 +115,7 @@ class ScanReport(Base):
     findings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     # CSPFinding-shaped dict, or null when the policy didn't check CSP.
     csp_finding: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    scanned_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+    scanned_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, index=True)
 
     @property
     def headers_evaluated(self) -> int:

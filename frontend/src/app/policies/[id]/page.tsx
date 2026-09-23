@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { Policy, PolicyHeader } from "@/lib/types";
+import type { CSPPolicy, Policy, PolicyHeader } from "@/lib/types";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
+import { CSPPolicyBuilder } from "@/components/CSPPolicyBuilder";
+import { CSPPolicySummary } from "@/components/CSPPolicySummary";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
@@ -20,6 +22,7 @@ export default function EditPolicyPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [headers, setHeaders] = useState<PolicyHeader[]>([]);
+  const [cspPolicy, setCspPolicy] = useState<CSPPolicy | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +35,7 @@ export default function EditPolicyPage() {
         setName(p.name);
         setDescription(p.description);
         setHeaders(p.headers);
+        setCspPolicy(p.csp_policy);
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Failed to load policy."))
       .finally(() => setLoading(false));
@@ -40,8 +44,12 @@ export default function EditPolicyPage() {
   async function handleSave() {
     setError(null);
     const cleaned = headers.filter((h) => h.header_name.trim());
-    if (!name.trim() || cleaned.length === 0) {
-      setError("Give the policy a name and at least one header rule.");
+    if (!name.trim()) {
+      setError("Give the policy a name.");
+      return;
+    }
+    if (cleaned.length === 0 && !cspPolicy) {
+      setError("Add at least one header rule or configure a CSP policy.");
       return;
     }
     setSaving(true);
@@ -50,6 +58,7 @@ export default function EditPolicyPage() {
         name: name.trim(),
         description: description.trim(),
         headers: cleaned,
+        csp_policy: cspPolicy,
       });
       setPolicy(updated);
       toast.show("Changes saved.", "success");
@@ -137,6 +146,15 @@ export default function EditPolicyPage() {
           </div>
         ) : (
           <HeaderPolicyEditor headers={headers} onChange={setHeaders} />
+        )}
+      </div>
+
+      <div className="panel fade-in-up" style={{ marginTop: 16 }}>
+        <h3 style={{ marginTop: 0, fontSize: 16 }}>Content-Security-Policy</h3>
+        {readOnly ? (
+          <CSPPolicySummary policy={cspPolicy} />
+        ) : (
+          <CSPPolicyBuilder policy={cspPolicy} onChange={setCspPolicy} />
         )}
 
         {!readOnly && (

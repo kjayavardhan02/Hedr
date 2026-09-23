@@ -26,11 +26,35 @@ export interface PolicyHeader {
   required: boolean;
 }
 
+// Content-Security-Policy is never a generic header - it's configured
+// separately via a structured rule set instead of one expected-value
+// string, since it's a collection of independently-addressable directives.
+export interface CSPDirectiveRule {
+  directive: string;
+  must_contain: string[];
+  must_not_contain: string[];
+  // null = no allowlist enforced; any non-null list means every actual
+  // source in this directive must be one of these.
+  allowed_sources: string[] | null;
+  disallow_wildcards: boolean;
+  disallow_external: boolean;
+  disallow_http: boolean;
+  disallow_data: boolean;
+  disallow_blob: boolean;
+}
+
+export interface CSPPolicy {
+  required: boolean;
+  required_directives: string[];
+  directive_rules: CSPDirectiveRule[];
+}
+
 export interface Policy {
   id: string;
   name: string;
   description: string;
   headers: PolicyHeader[];
+  csp_policy: CSPPolicy | null;
   is_baseline: boolean;
   baseline_key: string | null;
   owner_id: string | null;
@@ -43,6 +67,7 @@ export interface PolicyCreatePayload {
   name: string;
   description: string;
   headers: PolicyHeader[];
+  csp_policy: CSPPolicy | null;
 }
 
 export interface CheckResult {
@@ -51,6 +76,12 @@ export interface CheckResult {
   status: Status;
   expected: string | null;
   actual: string | null;
+  // Populated only for CSP findings - a stable CSP-### id, never derived
+  // from the description text, plus the finding's own severity/directive.
+  id: string | null;
+  severity: "low" | "medium" | "high" | "critical" | "info" | null;
+  directive: string | null;
+  evidence: string | null;
 }
 
 export interface HeaderFinding {
@@ -74,6 +105,11 @@ export interface CSPFinding {
   policy_checks: CheckResult[];
   security_checks: CheckResult[];
   directives: Record<string, string[]>;
+  policy_checks_passed: number;
+  policy_checks_total: number;
+  best_practice_passed: number;
+  best_practice_total: number;
+  overall_score: number;
 }
 
 export interface ScanResult {
@@ -143,6 +179,8 @@ export interface DashboardScan {
   grade: string;
   passed: number;
   failed: number;
+  headers_evaluated: number;
+  findings: DashboardFindings;
   scanned_at: string;
 }
 
@@ -151,6 +189,7 @@ export interface DashboardRecentPolicy {
   name: string;
   version: number;
   header_count: number;
+  has_csp_policy: boolean;
   created_at: string;
   updated_at: string;
 }

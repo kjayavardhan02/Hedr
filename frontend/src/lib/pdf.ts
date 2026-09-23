@@ -137,10 +137,20 @@ export function downloadReportPdf(data: PdfReportData): void {
 
   if (data.csp_finding) {
     const cspRows = [
-      ...data.csp_finding.policy_checks.map((c) => ["Policy", c.name, c.status, c.expected ?? "-", c.actual ?? "-"]),
+      ...data.csp_finding.policy_checks.map((c) => [
+        c.id ?? "-",
+        "Policy",
+        c.description,
+        c.severity ?? "-",
+        c.status,
+        c.expected ?? "-",
+        c.actual ?? "-",
+      ]),
       ...data.csp_finding.security_checks.map((c) => [
+        c.id ?? "-",
         "Best practice",
-        c.name,
+        c.description,
+        c.severity ?? "-",
         c.status,
         c.expected ?? "-",
         c.actual ?? "-",
@@ -152,16 +162,28 @@ export function downloadReportPdf(data: PdfReportData): void {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(0);
       doc.text("Content-Security-Policy Analysis", MARGIN_X, y);
-      y += 10;
+      y += 14;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(90);
+      doc.text(
+        `Policy Compliance: ${data.csp_finding.policy_checks_passed}/${data.csp_finding.policy_checks_total}` +
+          `  ·  Best-Practice: ${data.csp_finding.best_practice_passed}/${data.csp_finding.best_practice_total}` +
+          `  ·  Overall CSP Score: ${data.csp_finding.overall_score}`,
+        MARGIN_X,
+        y
+      );
+      y += 14;
 
       autoTable(doc, {
         startY: y,
-        head: [["Category", "Check", "Status", "Expected", "Actual"]],
+        head: [["ID", "Category", "Check", "Severity", "Status", "Expected", "Actual"]],
         body: cspRows,
         margin: { left: MARGIN_X, right: MARGIN_X },
         styles: { fontSize: 8, cellPadding: 5, overflow: "linebreak" },
         headStyles: { fillColor: ACCENT_RGB, textColor: 255 },
-        didParseCell: statusColorHook(2),
+        didParseCell: statusColorHook(4),
       });
       y = finalY(doc) + 16;
     }

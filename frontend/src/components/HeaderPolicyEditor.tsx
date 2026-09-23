@@ -2,9 +2,11 @@
 
 import type { PolicyHeader } from "@/lib/types";
 
+// Content-Security-Policy is deliberately not in this list - it's
+// configured through its own structured builder (CSPPolicyBuilder), never
+// as a generic header expected-value string.
 const COMMON_HEADERS = [
   "Strict-Transport-Security",
-  "Content-Security-Policy",
   "X-Content-Type-Options",
   "X-Frame-Options",
   "Referrer-Policy",

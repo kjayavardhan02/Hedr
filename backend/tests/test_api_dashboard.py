@@ -107,6 +107,47 @@ class TestDashboardReports:
         assert latest["passed"] == 1
         assert latest["failed"] == 1
 
+    def test_passed_failed_folds_in_a_failing_csp_as_one_unit(self, auth_client):
+        client, _ = auth_client
+        policy = {
+            "name": "With CSP",
+            "headers": [
+                {"header_name": "Strict-Transport-Security", "expected_value": "", "required": True},
+                {"header_name": "X-Content-Type-Options", "expected_value": "", "required": False},
+            ],
+            "csp_policy": {"required": True, "required_directives": [], "directive_rules": []},
+        }
+        run_scan(client, policy)
+        summary = client.get("/api/dashboard/summary").json()
+        latest = summary["latest_scan"]
+        # STS fails (missing, required), X-Content-Type-Options passes
+        # (missing, optional), and CSP fails (required but missing) - CSP is
+        # folded in as one more pass/fail unit rather than being left out,
+        # so the totals agree with headers_evaluated (3).
+        assert latest["passed"] == 1
+        assert latest["failed"] == 2
+        assert latest["passed"] + latest["failed"] == latest["headers_evaluated"] == 3
+        # CSP's own severity (critical) should show up in the tally too.
+        assert latest["findings"]["critical"] == 1
+
+    def test_passed_failed_folds_in_a_passing_csp_as_one_unit(self, auth_client):
+        client, _ = auth_client
+        policy = {
+            "name": "With CSP",
+            "headers": [],
+            "csp_policy": {"required": True, "required_directives": [], "directive_rules": []},
+        }
+        run_scan(
+            client,
+            policy,
+            raw_response="HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self'\n\n",
+        )
+        summary = client.get("/api/dashboard/summary").json()
+        latest = summary["latest_scan"]
+        assert latest["passed"] == 1
+        assert latest["failed"] == 0
+        assert latest["headers_evaluated"] == 1
+
     def test_raw_scan_target_name_used_on_dashboard(self, auth_client):
         client, _ = auth_client
         run_scan(client, {"name": "Named", "headers": ALL_PASS_POLICY}, target_name="My API")
@@ -142,6 +183,17 @@ class TestDashboardFindingsSeverity:
         summary = client.get("/api/dashboard/summary").json()
         assert len(summary["recent_scans"]) == 5
         assert summary["findings"]["high"] == 6
+
+    def test_latest_scan_findings_scoped_to_that_scan_only(self, auth_client):
+        client, _ = auth_client
+        run_scan(client, {"name": "High fail", "headers": HIGH_SEVERITY_FAIL})
+        run_scan(client, {"name": "Medium fail", "headers": MEDIUM_SEVERITY_FAIL})
+
+        summary = client.get("/api/dashboard/summary").json()
+        # The site-wide tally covers both scans, but the latest scan's own
+        # breakdown must reflect only the medium-severity failure it caused.
+        assert summary["findings"] == {"critical": 0, "high": 1, "medium": 1, "low": 0}
+        assert summary["latest_scan"]["findings"] == {"critical": 0, "high": 0, "medium": 1, "low": 0}
 
 
 class TestDashboardPolicies:
@@ -187,6 +239,32 @@ class TestDashboardPolicies:
         entry = summary["recent_policies"][0]
         assert entry["created_at"] == created["created_at"]
         assert entry["updated_at"] != created["created_at"]
+
+    def test_recent_policies_flags_csp_only_policy_instead_of_zero_rules(self, auth_client):
+        client, _ = auth_client
+        resp = client.post(
+            "/api/policies",
+            json={
+                "name": "CSP Only",
+                "description": "",
+                "headers": [],
+                "csp_policy": {"required": True, "required_directives": ["script-src"], "directive_rules": []},
+            },
+        )
+        assert resp.status_code == 201, resp.text
+
+        summary = client.get("/api/dashboard/summary").json()
+        entry = summary["recent_policies"][0]
+        assert entry["header_count"] == 0
+        assert entry["has_csp_policy"] is True
+
+    def test_recent_policies_has_csp_policy_false_when_not_configured(self, auth_client):
+        client, _ = auth_client
+        make_policy(client, "Headers Only", ALL_PASS_POLICY)
+
+        summary = client.get("/api/dashboard/summary").json()
+        entry = summary["recent_policies"][0]
+        assert entry["has_csp_policy"] is False
 
 
 class TestDashboardOwnershipIsolation:

@@ -8,7 +8,7 @@ from app.core.fetcher import FetchError, SSRFBlockedError, fetch_headers
 from app.core.header_parser import RawResponseParseError, parse_raw_response
 from app.core.policy_engine import run_scan
 from app.database import get_db
-from app.schemas import PolicyHeaderIn, ScanRequest, ScanResult, ScanSource
+from app.schemas import CSPPolicy, PolicyHeaderIn, ScanRequest, ScanResult, ScanSource
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 
@@ -56,6 +56,7 @@ def scan(
     policy_name: str
     policy_version: str
     used_policy_id: str | None
+    csp_policy: CSPPolicy | None
 
     if payload.policy_id:
         policy = db.get(models.Policy, payload.policy_id)
@@ -65,15 +66,19 @@ def scan(
         policy_name = policy.name
         policy_version = f"v{policy.version}"
         used_policy_id = policy.id
+        csp_policy = CSPPolicy(**policy.csp_policy) if policy.csp_policy else None
     elif payload.policy:
-        if not payload.policy.headers:
-            raise HTTPException(status_code=422, detail="Inline policy must include at least one header.")
+        if not payload.policy.headers and payload.policy.csp_policy is None:
+            raise HTTPException(
+                status_code=422, detail="Inline policy must include at least one header or a CSP policy."
+            )
         policy_headers = payload.policy.headers
         policy_name = payload.policy.name or "Ad-hoc Policy"
         # Ad-hoc policies aren't saved anywhere, so "v1" would falsely
         # imply a version history that doesn't exist - label it plainly.
         policy_version = "ad-hoc"
         used_policy_id = None
+        csp_policy = payload.policy.csp_policy
     else:
         raise HTTPException(status_code=422, detail="Either policy_id or policy must be provided.")
 
@@ -84,6 +89,7 @@ def scan(
         source=payload.source,
         target=target,
         fetched_status_code=fetched_status_code,
+        csp_policy=csp_policy,
     )
 
     # Save a report of this scan - only the policy-scoped findings/CSP

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import type { Policy, PolicyHeader, ScanResult } from "@/lib/types";
+import type { CSPPolicy, Policy, PolicyHeader, ScanResult } from "@/lib/types";
 import { ExportMenu } from "@/components/ExportMenu";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
+import { CSPPolicyBuilder } from "@/components/CSPPolicyBuilder";
 import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
@@ -32,6 +33,7 @@ export default function ScanPage() {
   const [adhocHeaders, setAdhocHeaders] = useState<PolicyHeader[]>([
     { header_name: "", expected_value: "", required: true },
   ]);
+  const [adhocCspPolicy, setAdhocCspPolicy] = useState<CSPPolicy | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +69,8 @@ export default function ScanPage() {
     }
     if (policySource === "adhoc") {
       const cleaned = adhocHeaders.filter((h) => h.header_name.trim());
-      if (cleaned.length === 0) {
-        setError("Add at least one header to the ad-hoc policy.");
+      if (cleaned.length === 0 && !adhocCspPolicy) {
+        setError("Add at least one header or configure a CSP policy for the ad-hoc policy.");
         return;
       }
     }
@@ -93,6 +95,7 @@ export default function ScanPage() {
                 name: adhocName || "Ad-hoc Policy",
                 description: "",
                 headers: adhocHeaders.filter((h) => h.header_name.trim()),
+                csp_policy: adhocCspPolicy,
               },
             };
 
@@ -223,6 +226,10 @@ export default function ScanPage() {
               <input value={adhocName} onChange={(e) => setAdhocName(e.target.value)} />
             </div>
             <HeaderPolicyEditor headers={adhocHeaders} onChange={setAdhocHeaders} />
+            <div style={{ marginTop: 18 }}>
+              <h3 style={{ marginTop: 0, fontSize: 15 }}>Content-Security-Policy</h3>
+              <CSPPolicyBuilder policy={adhocCspPolicy} onChange={setAdhocCspPolicy} />
+            </div>
           </div>
         )}
       </div>

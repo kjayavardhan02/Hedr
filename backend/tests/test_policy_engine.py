@@ -1,5 +1,6 @@
+from app.core.csp_findings import CSPFindingId
 from app.core.policy_engine import evaluate_csp, evaluate_header, run_scan
-from app.schemas import PolicyHeaderIn, ScanSource, Status
+from app.schemas import CSPPolicy, PolicyHeaderIn, ScanSource, Status
 
 
 class TestEvaluateHeader:
@@ -80,23 +81,96 @@ class TestEvaluateHeader:
         assert finding.present is False
 
 
+class TestXfoViaCspFrameAncestorsFallback:
+    def test_missing_xfo_passes_when_csp_frame_ancestors_is_equivalent(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors 'none'"})
+        assert finding.status == Status.PASS
+        assert finding.present is False
+        assert finding.score_earned == finding.score_possible
+        assert finding.checks[0].name == "csp-frame-ancestors-fallback"
+
+    def test_sameorigin_maps_to_self(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="SAMEORIGIN", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors 'self'"})
+        assert finding.status == Status.PASS
+
+    def test_missing_xfo_fails_when_frame_ancestors_is_weaker_than_expected(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)
+        # Policy wants DENY ('none'), but the response only restricts to 'self'.
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors 'self'"})
+        assert finding.status == Status.FAIL
+        assert finding.score_earned == 0.0
+        assert finding.checks[0].name == "csp-frame-ancestors-fallback"
+
+    def test_presence_only_xfo_rule_satisfied_by_any_frame_ancestors_value(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors 'self'"})
+        assert finding.status == Status.PASS
+
+    def test_falls_back_to_normal_missing_handling_when_csp_has_no_frame_ancestors(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "default-src 'self'"})
+        assert finding.status == Status.FAIL
+        assert finding.checks[0].name == "presence"
+
+    def test_falls_back_to_normal_missing_handling_when_csp_absent(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)
+        finding = evaluate_header(ph, {})
+        assert finding.status == Status.FAIL
+        assert finding.checks[0].name == "presence"
+
+    def test_falls_back_to_normal_missing_handling_for_unmapped_xfo_value(self):
+        # ALLOW-FROM is deprecated and not in the equivalence table - don't guess.
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="ALLOW-FROM https://example.com", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors https://example.com"})
+        assert finding.status == Status.FAIL
+        assert finding.checks[0].name == "presence"
+
+    def test_fallback_never_applies_when_xfo_is_actually_present(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)
+        finding = evaluate_header(
+            ph, {"x-frame-options": "SAMEORIGIN", "content-security-policy": "frame-ancestors 'none'"}
+        )
+        # XFO is present but wrong - the normal comparator handles this, not
+        # the missing-header fallback, regardless of what CSP says.
+        assert finding.status == Status.FAIL
+        assert finding.checks[0].name != "csp-frame-ancestors-fallback"
+
+
 class TestEvaluateCsp:
-    def test_no_policy_header_still_runs_best_practice_checks(self):
+    def test_no_csp_policy_still_runs_best_practice_checks(self):
         finding = evaluate_csp(None, {"content-security-policy": "default-src *"})
         assert finding.present is True
         assert finding.policy_checks == []
         assert any(c.name == "no-wildcard:default-src" for c in finding.security_checks)
 
-    def test_policy_header_with_missing_csp_fails_presence(self):
-        ph = PolicyHeaderIn(header_name="Content-Security-Policy", expected_value="default-src 'self'")
-        finding = evaluate_csp(ph, {})
+    def test_csp_policy_with_missing_header_fails_presence(self):
+        policy = CSPPolicy(required=True, required_directives=["default-src"])
+        finding = evaluate_csp(policy, {})
         assert finding.present is False
         assert finding.policy_checks[0].status == Status.FAIL
+        assert finding.policy_checks[0].id == CSPFindingId.HEADER_MISSING
 
-    def test_policy_header_present_only_rule_passes(self):
-        ph = PolicyHeaderIn(header_name="Content-Security-Policy", expected_value="")
-        finding = evaluate_csp(ph, {"content-security-policy": "default-src 'self'"})
+    def test_csp_policy_missing_header_not_required_passes(self):
+        policy = CSPPolicy(required=False, required_directives=["default-src"])
+        finding = evaluate_csp(policy, {})
+        assert finding.present is False
         assert finding.policy_checks[0].status == Status.PASS
+
+    def test_csp_policy_evaluated_when_header_present(self):
+        policy = CSPPolicy(required_directives=["default-src"])
+        finding = evaluate_csp(policy, {"content-security-policy": "default-src 'self'"})
+        assert finding.present is True
+        assert finding.policy_checks[0].status == Status.PASS
+
+    def test_score_breakdown_populated(self):
+        policy = CSPPolicy(required_directives=["default-src"])
+        finding = evaluate_csp(policy, {"content-security-policy": "default-src 'self'"})
+        assert finding.policy_checks_total == 1
+        assert finding.policy_checks_passed == 1
+        assert finding.best_practice_total > 0
+        assert 0 <= finding.overall_score <= 100
 
 
 class TestRunScan:
@@ -143,11 +217,9 @@ class TestRunScan:
         assert result.score == 0.0
         assert result.grade == "F"
 
-    def test_csp_header_extracted_and_not_double_counted(self):
-        policy_headers = [
-            PolicyHeaderIn(header_name="Content-Security-Policy", expected_value="default-src 'self'"),
-            PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY"),
-        ]
+    def test_csp_policy_evaluated_separately_from_headers(self):
+        policy_headers = [PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY")]
+        csp_policy = CSPPolicy(required_directives=["default-src"])
         raw_headers = {
             "content-security-policy": "default-src 'self'",
             "x-frame-options": "DENY",
@@ -159,6 +231,7 @@ class TestRunScan:
             source=ScanSource.raw,
             target=None,
             fetched_status_code=200,
+            csp_policy=csp_policy,
         )
         # CSP goes into csp_finding, not the plain findings list.
         assert len(result.findings) == 1

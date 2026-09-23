@@ -4,7 +4,6 @@
   "description": "A stricter baseline appropriate for financial applications, subject to appropriate review and customization.",
   "headers": [
     {"header_name": "Strict-Transport-Security", "expected_value": "max-age=63072000; includeSubDomains; preload", "required": true},
-    {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'", "required": true},
     {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
     {"header_name": "Referrer-Policy", "expected_value": "no-referrer", "required": true},
     {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": true},
@@ -13,5 +12,88 @@
     {"header_name": "Cross-Origin-Resource-Policy", "expected_value": "same-origin", "required": true},
     {"header_name": "Cross-Origin-Embedder-Policy", "expected_value": "require-corp", "required": true},
     {"header_name": "X-XSS-Protection", "expected_value": "0", "required": false}
-  ]
+  ],
+  "csp_policy": {
+    "required": true,
+    "required_directives": ["default-src", "script-src", "style-src", "object-src", "base-uri", "frame-ancestors", "form-action"],
+    "directive_rules": [
+      {
+        "directive": "default-src",
+        "must_contain": [],
+        "must_not_contain": [],
+        "allowed_sources": ["'self'"],
+        "disallow_wildcards": true,
+        "disallow_external": true,
+        "disallow_http": true,
+        "disallow_data": true,
+        "disallow_blob": true
+      },
+      {
+        "directive": "script-src",
+        "must_contain": [],
+        "must_not_contain": ["'unsafe-inline'", "'unsafe-eval'"],
+        "allowed_sources": ["'self'"],
+        "disallow_wildcards": true,
+        "disallow_external": true,
+        "disallow_http": true,
+        "disallow_data": true,
+        "disallow_blob": true
+      },
+      {
+        "directive": "style-src",
+        "must_contain": [],
+        "must_not_contain": ["'unsafe-inline'"],
+        "allowed_sources": null,
+        "disallow_wildcards": false,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "object-src",
+        "must_contain": ["'none'"],
+        "must_not_contain": [],
+        "allowed_sources": null,
+        "disallow_wildcards": false,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "base-uri",
+        "must_contain": ["'self'"],
+        "must_not_contain": [],
+        "allowed_sources": null,
+        "disallow_wildcards": false,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "frame-ancestors",
+        "must_contain": ["'none'"],
+        "must_not_contain": [],
+        "allowed_sources": null,
+        "disallow_wildcards": false,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "form-action",
+        "must_contain": ["'self'"],
+        "must_not_contain": [],
+        "allowed_sources": ["'self'"],
+        "disallow_wildcards": false,
+        "disallow_external": true,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      }
+    ]
+  }
 }

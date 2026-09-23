@@ -84,14 +84,6 @@ function IconScan() {
   );
 }
 
-function IconArrow() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M9 5l7 7-7 7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function gradeBadgeClass(grade: string): string {
   if (grade === "A" || grade === "B") return "badge-PASS";
   if (grade === "C" || grade === "D") return "badge-WARNING";
@@ -108,6 +100,31 @@ function gradeGlow(grade: string): string {
   if (grade === "A" || grade === "B") return "rgba(52, 199, 89, 0.22)";
   if (grade === "C" || grade === "D") return "rgba(255, 176, 32, 0.22)";
   return "rgba(239, 68, 68, 0.22)";
+}
+
+/** Eases an integer stat up from 0 on mount/change - same cubic-ease-out
+ * curve as ScoreRing's count-up, so the metric cards feel consistent with
+ * the rest of the dashboard rather than just snapping to a static number. */
+function CountUp({ value }: { value: number }) {
+  const [display, setDisplay] = useState(0);
+
+  useEffect(() => {
+    const duration = 700;
+    const start = performance.now();
+    let raf: number;
+
+    function tick(now: number) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(value * eased));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    }
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+
+  return <>{display}</>;
 }
 
 export default function DashboardPage() {
@@ -169,13 +186,13 @@ export default function DashboardPage() {
           tabIndex={0}
           onClick={() => router.push("/reports")}
         >
-          <div className="metric-card-top">
-            <div className="field-hint">Total Reports</div>
-            <div className="metric-icon">
-              <IconReports />
-            </div>
+          <div className="metric-icon">
+            <IconReports />
           </div>
-          <div className="metric-value">{summary.reports.total}</div>
+          <div className="field-hint">Total Reports</div>
+          <div className="metric-value">
+            <CountUp value={summary.reports.total} />
+          </div>
           {summary.reports.total === 0 && (
             <div className="metric-sub">Run your first scan to create a report.</div>
           )}
@@ -188,13 +205,13 @@ export default function DashboardPage() {
           tabIndex={0}
           onClick={() => router.push("/policies")}
         >
-          <div className="metric-card-top">
-            <div className="field-hint">Your Policies</div>
-            <div className="metric-icon">
-              <IconShield />
-            </div>
+          <div className="metric-icon">
+            <IconShield />
           </div>
-          <div className="metric-value">{summary.policies.total}</div>
+          <div className="field-hint">Your Policies</div>
+          <div className="metric-value">
+            <CountUp value={summary.policies.total} />
+          </div>
           {summary.policies.total === 0 && (
             <div className="metric-sub">Create your first custom policy.</div>
           )}
@@ -207,22 +224,29 @@ export default function DashboardPage() {
           tabIndex={0}
           onClick={() => router.push("/policies")}
         >
-          <div className="metric-card-top">
-            <div className="field-hint">Security Baselines</div>
-            <div className="metric-icon">
-              <IconLayers />
-            </div>
+          <div className="metric-icon">
+            <IconLayers />
           </div>
-          <div className="metric-value">{summary.baselines.total}</div>
+          <div className="field-hint">Security Baselines</div>
+          <div className="metric-value">
+            <CountUp value={summary.baselines.total} />
+          </div>
         </div>
 
-        <div className="panel metric-card fade-in-up" style={{ animationDelay: "160ms" }}>
-          <div className="metric-card-top">
-            <div className="field-hint">Average Score</div>
-            <div className="metric-icon">
-              <IconGauge />
-            </div>
+        <div
+          className="panel metric-card fade-in-up"
+          style={
+            {
+              animationDelay: "160ms",
+              "--metric-accent":
+                summary.average_score === null ? "var(--accent)" : gradeAccent(summary.average_grade ?? "F"),
+            } as React.CSSProperties
+          }
+        >
+          <div className="metric-icon">
+            <IconGauge />
           </div>
+          <div className="field-hint">Average Score</div>
           {summary.average_score === null ? (
             <>
               <div className="metric-value">—</div>
@@ -257,28 +281,75 @@ export default function DashboardPage() {
         </h3>
         {summary.latest_scan ? (
           <div className="latest-scan-panel">
-            <ScoreRing score={summary.latest_scan.score} grade={summary.latest_scan.grade} />
-            <div className="latest-scan-info">
-              <div className="mono" style={{ fontWeight: 600, fontSize: 15 }}>
-                {summary.latest_scan.target ?? "—"}
-              </div>
-              <div className="field-hint" style={{ marginTop: 2 }}>
-                {summary.latest_scan.policy_name} · {summary.latest_scan.policy_version}
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13 }}>
-                <span style={{ color: "var(--pass)" }}>{summary.latest_scan.passed} passed</span>
-                {"  ·  "}
-                <span style={{ color: "var(--fail)" }}>{summary.latest_scan.failed} failed</span>
-              </div>
-              <div className="field-hint" style={{ marginTop: 6 }}>
-                Scanned {timeAgo(summary.latest_scan.scanned_at)}
-              </div>
-              <div style={{ marginTop: 14 }}>
-                <Link className="btn btn-sm" href={`/reports/${summary.latest_scan.id}`}>
-                  View Report
-                </Link>
+            <div className="latest-scan-primary">
+              <ScoreRing score={summary.latest_scan.score} grade={summary.latest_scan.grade} />
+              <div className="latest-scan-info">
+                <div className="mono" style={{ fontWeight: 600, fontSize: 15 }}>
+                  {summary.latest_scan.target ?? "—"}
+                </div>
+                <div className="field-hint" style={{ marginTop: 2 }}>
+                  {summary.latest_scan.policy_name} · {summary.latest_scan.policy_version}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 13 }}>
+                  <span style={{ color: "var(--pass)" }}>{summary.latest_scan.passed} passed</span>
+                  {"  ·  "}
+                  <span style={{ color: "var(--fail)" }}>{summary.latest_scan.failed} failed</span>
+                </div>
+                <div className="field-hint" style={{ marginTop: 6 }}>
+                  Scanned {timeAgo(summary.latest_scan.scanned_at)}
+                </div>
+                <div style={{ marginTop: 14 }}>
+                  <Link className="btn btn-sm" href={`/reports/${summary.latest_scan.id}`}>
+                    View Report
+                  </Link>
+                </div>
               </div>
             </div>
+
+            <div className="latest-scan-middle">
+              {summary.average_score !== null &&
+                (() => {
+                  const delta = Math.round((summary.latest_scan!.score - summary.average_score!) * 10) / 10;
+                  const isUp = delta >= 0;
+                  return (
+                    <div className="latest-scan-stat">
+                      <div className="field-hint">Vs. your average</div>
+                      <div className="latest-scan-delta" style={{ color: isUp ? "var(--pass)" : "var(--fail)" }}>
+                        {isUp ? "+" : ""}
+                        {delta} {isUp ? "▲" : "▼"}
+                      </div>
+                    </div>
+                  );
+                })()}
+              <div className="latest-scan-stat">
+                <div className="field-hint">This scan&apos;s findings</div>
+                <div className="latest-scan-severity-row">
+                  <div className="latest-scan-severity-item">
+                    <span className="latest-scan-severity-value" style={{ color: "var(--fail)" }}>
+                      {summary.latest_scan.findings.critical}
+                    </span>
+                    <span className="latest-scan-severity-label">Crit</span>
+                  </div>
+                  <div className="latest-scan-severity-item">
+                    <span className="latest-scan-severity-value" style={{ color: "var(--accent)" }}>
+                      {summary.latest_scan.findings.high}
+                    </span>
+                    <span className="latest-scan-severity-label">High</span>
+                  </div>
+                  <div className="latest-scan-severity-item">
+                    <span className="latest-scan-severity-value" style={{ color: "var(--warn)" }}>
+                      {summary.latest_scan.findings.medium}
+                    </span>
+                    <span className="latest-scan-severity-label">Med</span>
+                  </div>
+                  <div className="latest-scan-severity-item">
+                    <span className="latest-scan-severity-value">{summary.latest_scan.findings.low}</span>
+                    <span className="latest-scan-severity-label">Low</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="latest-scan-side">
               {(() => {
                 const total = summary.latest_scan.passed + summary.latest_scan.failed;
@@ -299,7 +370,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="latest-scan-stat">
                       <div className="field-hint">Headers Evaluated</div>
-                      <div className="latest-scan-big-stat">{total}</div>
+                      <div className="latest-scan-big-stat">{summary.latest_scan!.headers_evaluated}</div>
                     </div>
                   </>
                 );
@@ -333,32 +404,47 @@ export default function DashboardPage() {
         {summary.recent_scans.length === 0 ? (
           <p className="empty-state">No scans yet.</p>
         ) : (
-          summary.recent_scans.map((s) => (
-            <div
-              className="dashboard-scan-row"
-              key={s.id}
-              role="button"
-              tabIndex={0}
-              style={{ "--row-accent": gradeAccent(s.grade) } as React.CSSProperties}
-              onClick={() => router.push(`/reports/${s.id}`)}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div className="mono dashboard-scan-target">{s.target ?? "—"}</div>
-                <div className="field-hint">
-                  {s.policy_name} · {s.policy_version}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                <span className={`badge ${gradeBadgeClass(s.grade)}`}>
-                  {s.grade} · {s.score}
-                </span>
-                <span className="field-hint">{timeAgo(s.scanned_at)}</span>
-                <span className="scan-row-arrow">
-                  <IconArrow />
-                </span>
-              </div>
-            </div>
-          ))
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Policy</th>
+                  <th>Version</th>
+                  <th>Score</th>
+                  <th>Scanned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.recent_scans.map((s) => (
+                  <tr
+                    key={s.id}
+                    style={{ "--row-accent": gradeAccent(s.grade) } as React.CSSProperties}
+                    onClick={() => router.push(`/reports/${s.id}`)}
+                  >
+                    <td className="dashboard-table-name-cell">
+                      <span className="dashboard-table-name-inline">
+                        <span className="dashboard-table-name-icon">
+                          <IconScan />
+                        </span>
+                        <span className="mono">{s.target ?? "—"}</span>
+                      </span>
+                    </td>
+                    <td>{s.policy_name}</td>
+                    <td>
+                      <span className="report-version-pill">{s.policy_version}</span>
+                    </td>
+                    <td>
+                      <span className={`badge ${gradeBadgeClass(s.grade)}`}>
+                        {s.grade} · {s.score}
+                      </span>
+                    </td>
+                    <td className="field-hint">{timeAgo(s.scanned_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -429,8 +515,8 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="policies-table-wrap">
-            <table className="policies-table">
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
               <thead>
                 <tr>
                   <th>Policy Name</th>
@@ -443,9 +529,9 @@ export default function DashboardPage() {
               <tbody>
                 {summary.recent_policies.map((p) => (
                   <tr key={p.id} onClick={() => router.push(`/policies/${p.id}`)}>
-                    <td className="policy-name-cell">
-                      <span className="policy-name-inline">
-                        <span className="policy-name-icon">
+                    <td className="dashboard-table-name-cell">
+                      <span className="dashboard-table-name-inline">
+                        <span className="dashboard-table-name-icon">
                           <IconShield />
                         </span>
                         {p.name}
@@ -455,7 +541,12 @@ export default function DashboardPage() {
                       <span className="report-version-pill">v{p.version}</span>
                     </td>
                     <td>
-                      <span className="policies-rules-pill">{p.header_count}</span>
+                      <span className="dashboard-table-pill">{p.header_count}</span>
+                      {p.has_csp_policy && (
+                        <span className="badge badge-INFO" style={{ marginLeft: 6 }}>
+                          CSP
+                        </span>
+                      )}
                     </td>
                     <td className="field-hint">{formatDateTime(p.created_at)}</td>
                     <td className="field-hint">{timeAgo(p.updated_at)}</td>
@@ -483,6 +574,7 @@ export default function DashboardPage() {
               <div style={{ fontWeight: 600 }}>{b.name}</div>
               <div className="field-hint" style={{ marginTop: 4 }}>
                 {b.headers.length} header rule{b.headers.length === 1 ? "" : "s"}
+                {b.csp_policy && " · evaluates CSP"}
               </div>
               <div className="row" style={{ marginTop: 12 }}>
                 <Link href={`/policies/${b.id}`} className="btn btn-secondary btn-sm">

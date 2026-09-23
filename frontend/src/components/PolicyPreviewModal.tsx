@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import type { Policy } from "@/lib/types";
+import { CSPPolicySummary } from "./CSPPolicySummary";
 
 interface Props {
   policy: Policy;
@@ -45,6 +46,7 @@ export function PolicyPreviewModal({ policy, onClose }: Props) {
               <span className="report-version-pill">v{policy.version}</span>
               <span className="field-hint" style={{ margin: 0 }}>
                 {headerCount} header rule{headerCount === 1 ? "" : "s"}
+                {policy.csp_policy && " · evaluates CSP"}
               </span>
             </div>
           </div>
@@ -57,7 +59,9 @@ export function PolicyPreviewModal({ policy, onClose }: Props) {
 
         <div className="modal-body">
           {headerCount === 0 ? (
-            <p className="field-hint">This policy has no header rules.</p>
+            <p className="field-hint">
+              {policy.csp_policy ? "This policy has no generic header rules." : "This policy has no header rules."}
+            </p>
           ) : (
             policy.headers.map((h, i) => (
               <div className="policy-preview-row" key={i}>
@@ -75,6 +79,13 @@ export function PolicyPreviewModal({ policy, onClose }: Props) {
                 </span>
               </div>
             ))
+          )}
+
+          {policy.csp_policy && (
+            <>
+              <h4 style={{ margin: "16px 0 4px", fontSize: 14 }}>Content-Security-Policy</h4>
+              <CSPPolicySummary policy={policy.csp_policy} />
+            </>
           )}
         </div>
 

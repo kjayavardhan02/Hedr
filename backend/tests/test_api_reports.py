@@ -13,8 +13,24 @@ POLICY_WITH_CSP = {
     "name": "Frame + CSP Policy",
     "headers": [
         {"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True},
-        {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'", "required": True},
     ],
+    "csp_policy": {
+        "required": True,
+        "required_directives": [],
+        "directive_rules": [
+            {
+                "directive": "default-src",
+                "must_contain": ["'self'"],
+                "must_not_contain": [],
+                "allowed_sources": None,
+                "disallow_wildcards": False,
+                "disallow_external": False,
+                "disallow_http": False,
+                "disallow_data": False,
+                "disallow_blob": False,
+            }
+        ],
+    },
 }
 
 

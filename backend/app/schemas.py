@@ -56,10 +56,58 @@ class PolicyHeaderIn(BaseModel):
     required: bool = True
 
 
+# ---------------------------------------------------------------------------
+# Content-Security-Policy is NOT just another header. Unlike every other
+# header (one flat expected-value string, compared as a whole), CSP is a
+# collection of independently-addressable directives, each with its own set
+# of source expressions - so it gets its own structured rule model instead
+# of being squeezed into PolicyHeaderIn.expected_value. See
+# app.core.csp_analyzer for the evaluator that consumes this shape.
+# ---------------------------------------------------------------------------
+
+
+class CSPDirectiveRule(BaseModel):
+    directive: str = Field(..., min_length=1, max_length=100)
+    # Source expressions that MUST be present in this directive's value.
+    must_contain: list[str] = Field(default_factory=list, max_length=50)
+    # Source expressions that must NOT be present.
+    must_not_contain: list[str] = Field(default_factory=list, max_length=50)
+    # None = no allowlist enforced. A non-None list means every actual source
+    # in this directive must be one of these (anything else fails).
+    allowed_sources: list[str] | None = None
+    # Configurable pattern restrictions (spec: these should be opt-in per
+    # policy, not universal assumptions - e.g. img-src legitimately uses
+    # data: URIs constantly, so this can't be a blanket rule).
+    disallow_wildcards: bool = False
+    disallow_external: bool = False
+    disallow_http: bool = False
+    disallow_data: bool = False
+    disallow_blob: bool = False
+
+
+class CSPPolicy(BaseModel):
+    # Whether the CSP header must be present at all.
+    required: bool = True
+    # Directives that must simply exist, regardless of their value.
+    required_directives: list[str] = Field(default_factory=list, max_length=50)
+    directive_rules: list[CSPDirectiveRule] = Field(default_factory=list, max_length=50)
+
+
 class PolicyCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = ""
     headers: list[PolicyHeaderIn] = Field(default_factory=list)
+    csp_policy: CSPPolicy | None = None
+
+    @field_validator("headers")
+    @classmethod
+    def _reject_csp_in_generic_headers(cls, headers: list[PolicyHeaderIn]) -> list[PolicyHeaderIn]:
+        for h in headers:
+            if h.header_name.strip().lower() == "content-security-policy":
+                raise ValueError(
+                    "Content-Security-Policy is configured via 'csp_policy', not as a generic header."
+                )
+        return headers
 
 
 class PolicyUpdate(PolicyCreate):
@@ -71,6 +119,7 @@ class PolicyOut(BaseModel):
     name: str
     description: str
     headers: list[PolicyHeaderIn]
+    csp_policy: CSPPolicy | None = None
     is_baseline: bool
     baseline_key: str | None = None
     owner_id: str | None = None
@@ -116,6 +165,13 @@ class CheckResult(BaseModel):
     status: Status
     expected: str | None = None
     actual: str | None = None
+    # Populated only for CSP findings (None for every generic-header check,
+    # which comparators.py never sets these on). `id` is a stable CSP-###
+    # identifier from app.core.csp_findings, never derived from check text.
+    id: str | None = None
+    severity: Literal["low", "medium", "high", "critical", "info"] | None = None
+    directive: str | None = None
+    evidence: str | None = None
 
 
 class HeaderFinding(BaseModel):
@@ -139,6 +195,15 @@ class CSPFinding(BaseModel):
     policy_checks: list[CheckResult] = Field(default_factory=list)
     security_checks: list[CheckResult] = Field(default_factory=list)
     directives: dict[str, list[str]] = Field(default_factory=dict)
+    # Score breakdown (see app.core.csp_analyzer.compute_csp_score) - kept as
+    # two independent tallies so a report can show "policy compliance" and
+    # "best-practice" separately, per the product spec, rather than only the
+    # single blended overall_score used for the report's overall score.
+    policy_checks_passed: int = 0
+    policy_checks_total: int = 0
+    best_practice_passed: int = 0
+    best_practice_total: int = 0
+    overall_score: float = 100.0
 
 
 class ScanResult(BaseModel):
@@ -223,11 +288,24 @@ class DashboardBaselinesInfo(BaseModel):
     total: int
 
 
+class DashboardFindings(BaseModel):
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
 class DashboardScan(BaseModel):
     """Shared shape for the dashboard's latest-scan panel and its recent-scans
-    list. `passed`/`failed` count only the header findings, the same way the
-    live scan/report pages already do (see ScoreHero) - never the CSP
-    finding, which has no single pass/fail state of its own."""
+    list. `passed`/`failed` count the header findings PLUS the CSP check as
+    one combined pass/fail unit (CSP has no single status of its own, so it
+    counts as failed if any of its policy/best-practice checks failed - the
+    same all-or-nothing rule the regular header comparators already use).
+    This makes `passed + failed` always equal `headers_evaluated`, which
+    mirrors ScanReportOut's property of the same name and agrees with the
+    policy's own rule count shown elsewhere on the dashboard. `findings` is
+    this single report's own FAIL-by-severity tally (not the site-wide one
+    on DashboardSummary) and folds in a failed CSP the same way."""
 
     id: str
     scan_number: int
@@ -240,6 +318,8 @@ class DashboardScan(BaseModel):
     grade: str
     passed: int
     failed: int
+    headers_evaluated: int
+    findings: DashboardFindings
     scanned_at: datetime
 
 
@@ -248,15 +328,9 @@ class DashboardRecentPolicy(BaseModel):
     name: str
     version: int
     header_count: int
+    has_csp_policy: bool
     created_at: datetime
     updated_at: datetime
-
-
-class DashboardFindings(BaseModel):
-    critical: int = 0
-    high: int = 0
-    medium: int = 0
-    low: int = 0
 
 
 class DashboardSummary(BaseModel):

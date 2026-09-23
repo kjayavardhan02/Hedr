@@ -4,11 +4,49 @@
   "description": "A baseline intended for SaaS web applications.",
   "headers": [
     {"header_name": "Strict-Transport-Security", "expected_value": "max-age=31536000; includeSubDomains", "required": true},
-    {"header_name": "Content-Security-Policy", "expected_value": "default-src 'self'; object-src 'none'", "required": true},
     {"header_name": "X-Content-Type-Options", "expected_value": "nosniff", "required": true},
     {"header_name": "Referrer-Policy", "expected_value": "strict-origin-when-cross-origin", "required": true},
     {"header_name": "X-Frame-Options", "expected_value": "SAMEORIGIN", "required": true},
     {"header_name": "Permissions-Policy", "expected_value": "geolocation=(); camera=()", "required": false},
     {"header_name": "Cross-Origin-Opener-Policy", "expected_value": "same-origin", "required": false}
-  ]
+  ],
+  "csp_policy": {
+    "required": true,
+    "required_directives": ["default-src", "script-src", "object-src"],
+    "directive_rules": [
+      {
+        "directive": "script-src",
+        "must_contain": [],
+        "must_not_contain": ["'unsafe-eval'"],
+        "allowed_sources": null,
+        "disallow_wildcards": true,
+        "disallow_external": false,
+        "disallow_http": true,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "object-src",
+        "must_contain": ["'none'"],
+        "must_not_contain": [],
+        "allowed_sources": null,
+        "disallow_wildcards": false,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      },
+      {
+        "directive": "connect-src",
+        "must_contain": [],
+        "must_not_contain": [],
+        "allowed_sources": null,
+        "disallow_wildcards": true,
+        "disallow_external": false,
+        "disallow_http": false,
+        "disallow_data": false,
+        "disallow_blob": false
+      }
+    ]
+  }
 }

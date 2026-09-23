@@ -21,6 +21,7 @@ def seed_baselines(db: Session) -> None:
             existing.name = data["name"]
             existing.description = data["description"]
             existing.headers = data["headers"]
+            existing.csp_policy = data.get("csp_policy")
             existing.is_baseline = True
         else:
             db.add(
@@ -28,6 +29,7 @@ def seed_baselines(db: Session) -> None:
                     name=data["name"],
                     description=data["description"],
                     headers=data["headers"],
+                    csp_policy=data.get("csp_policy"),
                     is_baseline=True,
                     baseline_key=data["key"],
                 )

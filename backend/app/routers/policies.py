@@ -57,12 +57,15 @@ def create_policy(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if not payload.headers:
-        raise HTTPException(status_code=422, detail="Policy must include at least one header.")
+    if not payload.headers and payload.csp_policy is None:
+        raise HTTPException(
+            status_code=422, detail="Policy must include at least one header or a CSP policy."
+        )
     policy = models.Policy(
         name=payload.name,
         description=payload.description,
         headers=[h.model_dump() for h in payload.headers],
+        csp_policy=payload.csp_policy.model_dump() if payload.csp_policy else None,
         owner_id=current_user.id,
     )
     db.add(policy)
@@ -88,11 +91,14 @@ def update_policy(
         )
     if policy.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Policy not found.")
-    if not payload.headers:
-        raise HTTPException(status_code=422, detail="Policy must include at least one header.")
+    if not payload.headers and payload.csp_policy is None:
+        raise HTTPException(
+            status_code=422, detail="Policy must include at least one header or a CSP policy."
+        )
     policy.name = payload.name
     policy.description = payload.description
     policy.headers = [h.model_dump() for h in payload.headers]
+    policy.csp_policy = payload.csp_policy.model_dump() if payload.csp_policy else None
     policy.version += 1
     db.commit()
     db.refresh(policy)

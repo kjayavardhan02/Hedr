@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { PolicyHeader } from "@/lib/types";
+import type { CSPPolicy, PolicyHeader } from "@/lib/types";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
+import { CSPPolicyBuilder } from "@/components/CSPPolicyBuilder";
 import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
@@ -21,6 +22,7 @@ function NewPolicyForm() {
   const [headers, setHeaders] = useState<PolicyHeader[]>([
     { header_name: "", expected_value: "", required: true },
   ]);
+  const [cspPolicy, setCspPolicy] = useState<CSPPolicy | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(!!templateId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,7 @@ function NewPolicyForm() {
         setName(`${p.name} (copy)`);
         setDescription(p.description);
         setHeaders(p.headers);
+        setCspPolicy(p.csp_policy);
       })
       .catch(() => setError("Could not load template policy."))
       .finally(() => setLoadingTemplate(false));
@@ -45,8 +48,8 @@ function NewPolicyForm() {
       return;
     }
     const cleaned = headers.filter((h) => h.header_name.trim());
-    if (cleaned.length === 0) {
-      setError("Add at least one header rule.");
+    if (cleaned.length === 0 && !cspPolicy) {
+      setError("Add at least one header rule or configure a CSP policy.");
       return;
     }
     setSaving(true);
@@ -55,6 +58,7 @@ function NewPolicyForm() {
         name: name.trim(),
         description: description.trim(),
         headers: cleaned,
+        csp_policy: cspPolicy,
       });
       toast.show(`Policy "${policy.name}" created.`, "success");
       router.push(`/policies/${policy.id}`);
@@ -89,6 +93,13 @@ function NewPolicyForm() {
           </div>
 
           <HeaderPolicyEditor headers={headers} onChange={setHeaders} />
+        </div>
+      )}
+
+      {!loadingTemplate && (
+        <div className="panel fade-in-up" style={{ marginTop: 16 }}>
+          <h3 style={{ marginTop: 0, fontSize: 16 }}>Content-Security-Policy</h3>
+          <CSPPolicyBuilder policy={cspPolicy} onChange={setCspPolicy} />
 
           <div style={{ marginTop: 18 }}>
             <button className="btn" onClick={handleSave} disabled={saving}>

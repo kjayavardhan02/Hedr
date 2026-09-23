@@ -37,7 +37,11 @@ export function ScoreRing({ score, grade }: { score: number; grade: string }) {
     function tick(now: number) {
       const progress = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setAnimatedScore(Math.round(score * eased));
+      // Round to 1 decimal (the same precision the backend stores), not to
+      // a whole number - rounding to an integer here made the ring show
+      // "76" for a 75.5 score while every other display on the page
+      // (Recent Scans, Average Score, etc.) correctly showed "75.5".
+      setAnimatedScore(Math.round(score * eased * 10) / 10);
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(tick);
       }

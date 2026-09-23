@@ -109,6 +109,7 @@ export default function PoliciesPage() {
                     </div>
                     <div className="policy-card-meta">
                       {p.headers.length} header rule{p.headers.length === 1 ? "" : "s"}
+                      {p.csp_policy ? " · evaluates CSP" : ""}
                       {p.description ? ` — ${p.description}` : ""}
                     </div>
                   </div>
@@ -147,7 +148,8 @@ export default function PoliciesPage() {
                     <span className="pill">baseline</span>
                   </div>
                   <div className="policy-card-meta">
-                    {p.headers.length} header rules — {p.description}
+                    {p.headers.length} header rules
+                    {p.csp_policy ? " · evaluates CSP" : ""} — {p.description}
                   </div>
                 </div>
                 <div className="row policy-card-actions">
