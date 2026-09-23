@@ -20,9 +20,50 @@ interface ScoreHeroData {
   findings: HeaderFinding[];
 }
 
-export function ScoreHero({ result }: { result: ScoreHeroData }) {
+// Colors the tinted variant the same way the comparison card is tinted.
+function toneFor(grade: string): "up" | "warn" | "down" {
+  if (grade === "A" || grade === "B") return "up";
+  if (grade === "C" || grade === "D") return "warn";
+  return "down";
+}
+
+export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; tinted?: boolean }) {
   const passCount = result.findings.filter((f) => f.status === "PASS").length;
   const failCount = result.findings.filter((f) => f.status === "FAIL").length;
+
+  if (tinted) {
+    return (
+      <div className={`panel cmp-card cmp-card-${toneFor(result.grade)} fade-in-up`}>
+        <div className="score-hero">
+          <ScoreRing score={result.score} grade={result.grade} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>{result.policy_name}</div>
+            <p style={{ margin: "0 0 6px", fontSize: 14 }}>{takeaway(result.grade, failCount)}</p>
+            <div className="field-hint">
+              {result.target ? (
+                <>
+                  Target: <span className="mono">{result.target}</span>
+                  {result.fetched_status_code !== null && <> — HTTP {result.fetched_status_code}</>}
+                </>
+              ) : (
+                "Parsed from pasted response"
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="cmp-tiles">
+          <div className={`cmp-tile cmp-tile-good ${passCount === 0 ? "is-zero" : ""}`}>
+            <span className="cmp-tile-value">{passCount}</span>
+            <span className="cmp-tile-label">Passed</span>
+          </div>
+          <div className={`cmp-tile cmp-tile-bad ${failCount === 0 ? "is-zero" : ""}`}>
+            <span className="cmp-tile-value">{failCount}</span>
+            <span className="cmp-tile-label">Failed</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="panel fade-in-up">

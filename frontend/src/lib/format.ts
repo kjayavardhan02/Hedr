@@ -46,3 +46,11 @@ export function greeting(): string {
   if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
+
+/** Rounds a score difference to one decimal place (dropping a trailing
+ * ".0"), which also removes float noise like 45.400000000000006 from a
+ * subtraction of two stored scores. */
+export function roundDelta(delta: number): number {
+  const rounded = Math.round(delta * 10) / 10;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}

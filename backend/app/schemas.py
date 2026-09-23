@@ -272,6 +272,121 @@ class ScanReportOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Scan comparison
+#
+# Computed dynamically from two existing ScanReport rows - no persisted
+# comparison table. See app.core.scan_comparison for how these are built.
+# ---------------------------------------------------------------------------
+
+
+class ComparisonReportRef(BaseModel):
+    id: str
+    scan_number: int
+    score: float
+    grade: str
+    scanned_at: datetime
+
+
+class HeaderAdded(BaseModel):
+    header: str
+    latest_value: str | None
+
+
+class HeaderRemoved(BaseModel):
+    header: str
+    previous_value: str | None
+
+
+class HeaderChanged(BaseModel):
+    header: str
+    previous_value: str | None
+    latest_value: str | None
+
+
+class FindingRef(BaseModel):
+    header: str
+    severity: Literal["low", "medium", "high", "critical", "info"]
+    previous_status: Status
+    latest_status: Status
+
+
+class SeverityChange(BaseModel):
+    header: str
+    previous_severity: Literal["low", "medium", "high", "critical", "info"]
+    latest_severity: Literal["low", "medium", "high", "critical", "info"]
+
+
+class CSPCheckRef(BaseModel):
+    id: str
+    directive: str | None
+    category: Literal["policy", "security"]
+    description: str
+    severity: Literal["low", "medium", "high", "critical", "info"] | None
+    previous_status: Status
+    latest_status: Status
+
+
+class CSPDirectiveChanged(BaseModel):
+    directive: str
+    previous_value: list[str] | None
+    latest_value: list[str] | None
+
+
+class CSPChanges(BaseModel):
+    resolved: list[CSPCheckRef] = Field(default_factory=list)
+    new: list[CSPCheckRef] = Field(default_factory=list)
+    severity_changed: list[CSPCheckRef] = Field(default_factory=list)
+    directive_changes: list[CSPDirectiveChanged] = Field(default_factory=list)
+    previous_policy_checks_passed: int
+    previous_policy_checks_total: int
+    latest_policy_checks_passed: int
+    latest_policy_checks_total: int
+    previous_best_practice_passed: int
+    previous_best_practice_total: int
+    latest_best_practice_passed: int
+    latest_best_practice_total: int
+    previous_overall_score: float
+    latest_overall_score: float
+
+
+class ComparisonSummary(BaseModel):
+    previous_score: float
+    latest_score: float
+    score_delta: float
+    previous_grade: str
+    latest_grade: str
+    headers_added: int
+    headers_removed: int
+    headers_changed: int
+    findings_resolved: int
+    findings_new: int
+    severity_changes: int
+
+
+class ComparisonChanges(BaseModel):
+    headers_added: list[HeaderAdded] = Field(default_factory=list)
+    headers_removed: list[HeaderRemoved] = Field(default_factory=list)
+    headers_changed: list[HeaderChanged] = Field(default_factory=list)
+    findings_resolved: list[FindingRef] = Field(default_factory=list)
+    findings_new: list[FindingRef] = Field(default_factory=list)
+    severity_changes: list[SeverityChange] = Field(default_factory=list)
+    csp_changes: CSPChanges | None = None
+
+
+class ComparisonResponse(BaseModel):
+    has_comparison: bool
+    # Populated only when has_comparison is False - explains why, so the
+    # frontend can show the right empty-state copy (see app.core.scan_comparison).
+    reason: (
+        Literal["ad_hoc_policy", "raw_default_target", "policy_version_changed", "no_previous_scan"] | None
+    ) = None
+    previous_report: ComparisonReportRef | None = None
+    latest_report: ComparisonReportRef | None = None
+    summary: ComparisonSummary | None = None
+    changes: ComparisonChanges | None = None
+
+
+# ---------------------------------------------------------------------------
 # Dashboard summary
 # ---------------------------------------------------------------------------
 

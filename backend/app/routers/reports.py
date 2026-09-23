@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core import scan_comparison
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.schemas import ScanReportOut, ScanReportSummary
+from app.schemas import ComparisonResponse, ScanReportOut, ScanReportSummary
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -35,6 +36,18 @@ def get_report(
     if report is None or report.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Report not found.")
     return report
+
+
+@router.get("/{report_id}/comparison", response_model=ComparisonResponse)
+def get_report_comparison(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    report = db.get(models.ScanReport, report_id)
+    if report is None or report.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    return scan_comparison.build_comparison_for_report(db, report)
 
 
 @router.delete("/{report_id}", status_code=204)

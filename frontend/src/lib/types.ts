@@ -158,6 +158,114 @@ export interface ScanReport {
   scanned_at: string;
 }
 
+export interface ComparisonReportRef {
+  id: string;
+  scan_number: number;
+  score: number;
+  grade: string;
+  scanned_at: string;
+}
+
+export interface HeaderAdded {
+  header: string;
+  latest_value: string | null;
+}
+
+export interface HeaderRemoved {
+  header: string;
+  previous_value: string | null;
+}
+
+export interface HeaderChanged {
+  header: string;
+  previous_value: string | null;
+  latest_value: string | null;
+}
+
+export interface FindingRef {
+  header: string;
+  severity: "low" | "medium" | "high" | "critical" | "info";
+  previous_status: Status;
+  latest_status: Status;
+}
+
+export interface SeverityChange {
+  header: string;
+  previous_severity: "low" | "medium" | "high" | "critical" | "info";
+  latest_severity: "low" | "medium" | "high" | "critical" | "info";
+}
+
+export interface CSPCheckRef {
+  id: string;
+  directive: string | null;
+  category: "policy" | "security";
+  description: string;
+  severity: "low" | "medium" | "high" | "critical" | "info" | null;
+  previous_status: Status;
+  latest_status: Status;
+}
+
+export interface CSPDirectiveChanged {
+  directive: string;
+  previous_value: string[] | null;
+  latest_value: string[] | null;
+}
+
+export interface CSPChanges {
+  resolved: CSPCheckRef[];
+  new: CSPCheckRef[];
+  severity_changed: CSPCheckRef[];
+  directive_changes: CSPDirectiveChanged[];
+  previous_policy_checks_passed: number;
+  previous_policy_checks_total: number;
+  latest_policy_checks_passed: number;
+  latest_policy_checks_total: number;
+  previous_best_practice_passed: number;
+  previous_best_practice_total: number;
+  latest_best_practice_passed: number;
+  latest_best_practice_total: number;
+  previous_overall_score: number;
+  latest_overall_score: number;
+}
+
+export interface ComparisonSummary {
+  previous_score: number;
+  latest_score: number;
+  score_delta: number;
+  previous_grade: string;
+  latest_grade: string;
+  headers_added: number;
+  headers_removed: number;
+  headers_changed: number;
+  findings_resolved: number;
+  findings_new: number;
+  severity_changes: number;
+}
+
+export interface ComparisonChanges {
+  headers_added: HeaderAdded[];
+  headers_removed: HeaderRemoved[];
+  headers_changed: HeaderChanged[];
+  findings_resolved: FindingRef[];
+  findings_new: FindingRef[];
+  severity_changes: SeverityChange[];
+  csp_changes: CSPChanges | null;
+}
+
+export interface ComparisonResponse {
+  has_comparison: boolean;
+  reason:
+    | "ad_hoc_policy"
+    | "raw_default_target"
+    | "policy_version_changed"
+    | "no_previous_scan"
+    | null;
+  previous_report: ComparisonReportRef | null;
+  latest_report: ComparisonReportRef | null;
+  summary: ComparisonSummary | null;
+  changes: ComparisonChanges | null;
+}
+
 export interface ScanRequestPayload {
   source: "url" | "raw";
   url?: string;

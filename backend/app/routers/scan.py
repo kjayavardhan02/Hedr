@@ -7,6 +7,7 @@ from app.core.deps import get_current_user
 from app.core.fetcher import FetchError, SSRFBlockedError, fetch_headers
 from app.core.header_parser import RawResponseParseError, parse_raw_response
 from app.core.policy_engine import run_scan
+from app.core.scan_comparison import DEFAULT_RAW_TARGET_NAME
 from app.database import get_db
 from app.schemas import CSPPolicy, PolicyHeaderIn, ScanRequest, ScanResult, ScanSource
 
@@ -48,7 +49,7 @@ def scan(
         target = (
             payload.target_name.strip()
             if payload.target_name and payload.target_name.strip()
-            else "HTTP Response Scan"
+            else DEFAULT_RAW_TARGET_NAME
         )
 
     # --- Resolve policy --------------------------------------------------

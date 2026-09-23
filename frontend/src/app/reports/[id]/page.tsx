@@ -8,6 +8,7 @@ import { ExportMenu } from "@/components/ExportMenu";
 import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
+import { ComparisonPanel } from "@/components/ComparisonPanel";
 import { BackLink } from "@/components/BackLink";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
@@ -96,7 +97,10 @@ export default function ReportDetailPage() {
         </p>
         <ExportMenu data={report} />
       </div>
-      <ScoreHero result={report} />
+      <div className="report-top-row">
+        <ScoreHero result={report} tinted />
+        <ComparisonPanel reportId={id} />
+      </div>
 
       <div className="panel fade-in-up" style={{ marginTop: 16, animationDelay: "40ms" }}>
         <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16 }}>Findings</h3>

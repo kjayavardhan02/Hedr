@@ -675,6 +675,10 @@ select:focus {
     0 0 0 1px rgba(255, 122, 26, 0.05);
 }
 
+.modal-panel-wide {
+  max-width: 720px;
+}
+
 .modal-panel::before {
   content: "";
   position: absolute;
@@ -976,6 +980,296 @@ select:focus {
 .csp-pattern-checks input {
   width: 15px;
   height: 15px;
+}
+
+/* --- Scan comparison ("Changes Since Previous Scan") ---------------------- */
+
+/* Score card and comparison card sit side by side, stacking on narrow screens. */
+.report-top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.35fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.report-top-row > .panel,
+.report-top-row > .panel + .panel {
+  margin-top: 0;
+}
+
+.cmp-card-warn {
+  --cmp-accent: var(--warn);
+}
+
+
+/* In the half-width card, let the text wrap beside the ring instead of
+   dropping below it. */
+.report-top-row .score-hero {
+  flex-wrap: nowrap;
+}
+
+.report-top-row .score-hero > div:last-child {
+  min-width: 0;
+  flex: 1 1 0;
+}
+
+@media (max-width: 960px) {
+  .report-top-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Summary card: tinted by outcome (green improved, red regression). */
+.cmp-card {
+  --cmp-accent: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--cmp-accent) 13%, var(--panel)),
+    var(--panel) 62%
+  );
+  border-color: color-mix(in srgb, var(--cmp-accent) 30%, var(--panel-border));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 20px -12px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.cmp-card-up {
+  --cmp-accent: var(--pass);
+}
+
+.cmp-card-down {
+  --cmp-accent: var(--fail);
+}
+
+.cmp-card-flat {
+  --cmp-accent: var(--text-dim);
+}
+
+.cmp-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cmp-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--cmp-accent);
+  background: radial-gradient(
+    circle at 35% 30%,
+    color-mix(in srgb, var(--cmp-accent) 40%, transparent),
+    color-mix(in srgb, var(--cmp-accent) 14%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cmp-accent) 45%, transparent);
+}
+
+.cmp-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cmp-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmp-title-block .cmp-title {
+  flex: none;
+}
+
+.cmp-subtitle {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.cmp-hero {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+.cmp-delta {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--cmp-accent);
+}
+
+.cmp-delta-label {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--cmp-accent);
+}
+
+.cmp-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cmp-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cmp-stat-label {
+  min-width: 44px;
+}
+
+.cmp-stat-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.cmp-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cmp-arrow {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.cmp-tiles {
+  display: flex;
+  gap: 8px;
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+.cmp-tile {
+  --tile-accent: var(--text-dim);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 62px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tile-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tile-accent) 28%, var(--panel-border));
+}
+
+.cmp-tile-good {
+  --tile-accent: var(--pass);
+}
+
+.cmp-tile-bad {
+  --tile-accent: var(--fail);
+}
+
+.cmp-tile-warn {
+  --tile-accent: var(--warn);
+}
+
+.cmp-tile.is-zero {
+  --tile-accent: var(--text-dim);
+  opacity: 0.6;
+}
+
+.cmp-tile-value {
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--tile-accent);
+}
+
+.cmp-tile-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.comparison-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.comparison-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: 13px;
+}
+
+.comparison-row:last-child {
+  border-bottom: none;
+}
+
+.comparison-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  font-weight: 700;
+}
+
+.comparison-added {
+  color: var(--pass);
+}
+
+.comparison-removed {
+  color: var(--fail);
+}
+
+.comparison-changed {
+  color: var(--warn);
+}
+
+.comparison-value {
+  color: var(--text-dim);
+}
+
+/* Name on the first line, its value on the line below. */
+.comparison-row-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.comparison-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.comparison-row-stacked > .comparison-value {
+  padding-left: 26px;
+}
+
+.comparison-delta {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .mono {
