@@ -1,6 +1,8 @@
 "use client";
 
 import type { PolicyHeader } from "@/lib/types";
+import { headerKind } from "@/lib/headerValueSyntax";
+import { HeaderValueControls } from "./HeaderValueControls";
 
 // Content-Security-Policy is deliberately not in this list - it's
 // configured through its own structured builder (CSPPolicyBuilder), never
@@ -84,15 +86,26 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
           </div>
           <div className="field" style={{ flex: 2 }}>
             <label>Expected value</label>
-            <input
-              placeholder="e.g. max-age=31536000; includeSubDomains; preload (leave blank to just require presence)"
-              value={h.expected_value}
-              onChange={(e) => updateRow(i, { expected_value: e.target.value })}
-            />
-            <span className="field-hint">
-              Tip: separate multiple allowed values with &quot;|&quot;, e.g.{" "}
-              <code>no-referrer|strict-origin</code>.
-            </span>
+            {headerKind(h.header_name) ? (
+              <HeaderValueControls
+                key={h.header_name.trim().toLowerCase()}
+                headerName={h.header_name}
+                value={h.expected_value}
+                onChange={(value) => updateRow(i, { expected_value: value })}
+              />
+            ) : (
+              <>
+                <input
+                  placeholder="e.g. max-age=31536000; includeSubDomains; preload (leave blank to just require presence)"
+                  value={h.expected_value}
+                  onChange={(e) => updateRow(i, { expected_value: e.target.value })}
+                />
+                <span className="field-hint">
+                  Tip: separate multiple allowed values with &quot;|&quot;, e.g.{" "}
+                  <code>no-referrer|strict-origin</code>.
+                </span>
+              </>
+            )}
           </div>
           <div className="field field-fixed">
             <label>Required</label>

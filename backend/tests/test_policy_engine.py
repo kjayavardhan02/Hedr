@@ -255,3 +255,126 @@ class TestRunScan:
         )
         assert result.score == 50.0
         assert result.grade == "F"
+
+
+class TestSemanticComparisonThroughEvaluateHeader:
+    """Formatting-only differences must not change the finding; real
+    differences must. Exercises the full evaluate_header path (presence
+    handling, scoring) rather than the comparators in isolation."""
+
+    def _finding(self, header, expected, actual, required=True):
+        ph = PolicyHeaderIn(header_name=header, expected_value=expected, required=required)
+        return evaluate_header(ph, {header.lower(): actual})
+
+    def test_cache_control_spacing_and_order_still_full_score(self):
+        finding = self._finding(
+            "Cache-Control",
+            "private, no-cache, no-store, max-age=0, must-revalidate",
+            "must-revalidate,   max-age=0,no-store,   no-cache,private",
+        )
+        assert finding.status == Status.PASS
+        assert finding.score_earned == finding.score_possible
+
+    def test_cache_control_real_difference_is_flagged(self):
+        finding = self._finding("Cache-Control", "private, no-store", "public, max-age=3600")
+        assert finding.status == Status.FAIL
+        assert finding.score_earned < finding.score_possible
+
+    def test_cors_origin_formatting_only(self):
+        finding = self._finding("Access-Control-Allow-Origin", "https://example.com", "HTTPS://EXAMPLE.COM/")
+        assert finding.status == Status.PASS
+
+    def test_cors_wildcard_is_flagged_against_a_specific_origin_policy(self):
+        finding = self._finding("Access-Control-Allow-Origin", "https://example.com", "*")
+        assert finding.status == Status.FAIL
+
+    def test_xss_protection_formatting_only(self):
+        assert self._finding("X-XSS-Protection", "1; mode=block", "1;mode=block").status == Status.PASS
+
+    def test_referrer_policy_multi_token(self):
+        finding = self._finding("Referrer-Policy", "strict-origin|no-referrer", "unsafe-url, no-referrer")
+        assert finding.status == Status.PASS
+
+    def test_presence_only_rule_ignores_value_for_new_comparator_headers(self):
+        for header in ("Cache-Control", "X-XSS-Protection", "Access-Control-Allow-Origin", "Referrer-Policy"):
+            finding = self._finding(header, "", "whatever value")
+            assert finding.status == Status.PASS, header
+
+    def test_missing_required_header_still_fails_for_new_comparator_headers(self):
+        for header in ("Cache-Control", "X-XSS-Protection", "Access-Control-Allow-Origin", "Referrer-Policy"):
+            ph = PolicyHeaderIn(header_name=header, expected_value="x", required=True)
+            assert evaluate_header(ph, {}).status == Status.FAIL, header
+
+    def test_acac_without_acao_is_still_never_flagged(self):
+        ph = PolicyHeaderIn(header_name="Access-Control-Allow-Credentials", expected_value="true", required=True)
+        finding = evaluate_header(ph, {"access-control-allow-credentials": "false"})
+        assert finding.status == Status.PASS
+
+    def test_acac_whitespace_is_ignored_when_acao_present(self):
+        ph = PolicyHeaderIn(header_name="Access-Control-Allow-Credentials", expected_value="true", required=True)
+        headers = {"access-control-allow-credentials": "  true ", "access-control-allow-origin": "https://a.com"}
+        assert evaluate_header(ph, headers).status == Status.PASS
+        headers["access-control-allow-credentials"] = "false"
+        assert evaluate_header(ph, headers).status == Status.FAIL
+
+
+class TestBaselinesStillEvaluateCorrectly:
+    """Every built-in baseline's non-CSP rules must pass against a response
+    that satisfies them and fail against one that doesn't, so a comparator
+    change can never silently weaken a shipped baseline."""
+
+    @staticmethod
+    def _baselines():
+        import glob
+        import json
+        import os
+
+        base = os.path.join(os.path.dirname(__file__), "..", "app", "baselines", "*.json")
+        return [json.load(open(p)) for p in sorted(glob.glob(base))]
+
+    @staticmethod
+    def _satisfying_value(header, expected):
+        first = expected.split("|")[0].strip()
+        # Permissions-Policy is written ';'-separated in baselines but is
+        # sent comma-separated by real servers.
+        return first.replace("; ", ", ") if header.lower() == "permissions-policy" else first
+
+    def test_every_rule_passes_against_a_satisfying_response(self):
+        for baseline in self._baselines():
+            for rule in baseline["headers"]:
+                raw = {rule["header_name"].lower(): self._satisfying_value(rule["header_name"], rule["expected_value"])}
+                ph = PolicyHeaderIn(**rule)
+                finding = evaluate_header(ph, raw)
+                assert finding.status == Status.PASS, (baseline["name"], rule["header_name"], finding.checks)
+
+    def test_every_required_rule_fails_when_the_header_is_missing(self):
+        for baseline in self._baselines():
+            for rule in baseline["headers"]:
+                if rule["required"]:
+                    finding = evaluate_header(PolicyHeaderIn(**rule), {})
+                    assert finding.status == Status.FAIL, (baseline["name"], rule["header_name"])
+
+    def test_every_rule_with_a_value_fails_against_a_wrong_value(self):
+        for baseline in self._baselines():
+            for rule in baseline["headers"]:
+                if not rule["expected_value"].strip():
+                    continue
+                raw = {rule["header_name"].lower(): "definitely-not-the-right-value"}
+                finding = evaluate_header(PolicyHeaderIn(**rule), raw)
+                assert finding.status == Status.FAIL, (baseline["name"], rule["header_name"])
+
+    def test_permissions_policy_baselines_check_every_feature(self):
+        for baseline in self._baselines():
+            for rule in baseline["headers"]:
+                if rule["header_name"].lower() != "permissions-policy":
+                    continue
+                features = [f.split("=")[0].strip() for f in rule["expected_value"].split(";") if "=" in f]
+                good = self._satisfying_value("Permissions-Policy", rule["expected_value"])
+                for feature in features:
+                    # Loosen exactly one feature; the baseline must notice.
+                    loosened = ", ".join(
+                        f"{f}=(*)" if f == feature else part
+                        for f, part in zip(features, [p.strip() for p in good.split(",")])
+                    )
+                    finding = evaluate_header(PolicyHeaderIn(**rule), {"permissions-policy": loosened})
+                    assert finding.status == Status.FAIL, (baseline["name"], feature)
