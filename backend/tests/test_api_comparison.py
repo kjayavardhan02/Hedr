@@ -190,6 +190,78 @@ class TestComparisonRawDefaultTarget:
         data = client.get(f"/api/reports/{latest_report_id}/comparison").json()
 
         assert data["has_comparison"] is False
+        assert data["reason"] == "different_policy"
+
+
+class TestComparisonTargetIdentity:
+    def test_names_differing_only_in_case_and_spacing_are_the_same_target(self, auth_client):
+        client, _ = auth_client
+        policy = make_policy(client, "Names Policy", COMPARISON_POLICY_HEADERS)
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API")
+        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "  PRODUCTION     api ")
+
+        data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
+
+        assert data["has_comparison"] is True
+        # Original spellings are kept for display.
+        assert data["previous_report"]["target"] == "Production API"
+        assert data["latest_report"]["target"] == "PRODUCTION     api"
+
+    def test_different_names_are_different_targets(self, auth_client):
+        client, _ = auth_client
+        policy = make_policy(client, "Names Policy", COMPARISON_POLICY_HEADERS)
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API")
+        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "Staging API")
+
+        data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
+
+        assert data["has_comparison"] is False
+        assert data["reason"] == "no_previous_scan"
+
+    def test_duplicate_names_are_allowed_and_each_compares_with_the_one_before(self, auth_client):
+        client, _ = auth_client
+        policy = make_policy(client, "Dupes Policy", COMPARISON_POLICY_HEADERS)
+        for raw in (RAW_V1, RAW_V2_CHANGED_AND_ADDED, RAW_V1):
+            run_scan_with_policy_id(client, policy["id"], raw, "Production API")
+
+        assert len(client.get("/api/reports").json()) == 3
+        for number, previous in ((2, 1), (3, 2)):
+            data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, number)}/comparison").json()
+            assert data["previous_report"]["scan_number"] == previous
+
+    def test_anonymous_default_name_is_anonymous_however_it_is_written(self, auth_client):
+        client, _ = auth_client
+        policy = make_policy(client, "Anon Policy", COMPARISON_POLICY_HEADERS)
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, "http response scan")
+        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "HTTP   Response  SCAN")
+
+        data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
+
+        assert data["has_comparison"] is False
+        assert data["reason"] == "raw_default_target"
+
+    def test_a_client_supplied_previous_report_id_is_ignored(self, auth_client, make_user):
+        client, _ = auth_client
+        policy = make_policy(client, "Spoof Policy", COMPARISON_POLICY_HEADERS)
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Other Target")
+        victim_report_id = get_report_id_for_scan_number(client, 1)
+
+        make_user()  # a second user now attacks by naming the first user's report
+        other_policy = make_policy(client, "Attacker Policy", COMPARISON_POLICY_HEADERS)
+        resp = client.post(
+            "/api/scan",
+            json={
+                "source": "raw",
+                "raw_response": RAW_V1,
+                "policy_id": other_policy["id"],
+                "target_name": "Other Target",
+                "previous_report_id": victim_report_id,
+            },
+        )
+        assert resp.status_code == 200
+        report_id = get_report_id_for_scan_number(client, 1)
+        data = client.get(f"/api/reports/{report_id}/comparison").json()
+        assert data["has_comparison"] is False
         assert data["reason"] == "no_previous_scan"
 
 
@@ -208,7 +280,7 @@ class TestComparisonDeletedPolicyAndReports:
         assert data["has_comparison"] is True
         assert data["previous_report"]["scan_number"] == 1
 
-    def test_falls_back_when_immediate_previous_report_deleted(self, auth_client):
+    def test_deleted_previous_report_makes_the_comparison_unavailable(self, auth_client):
         client, _ = auth_client
         policy = make_policy(client, "Multi Scan Policy", COMPARISON_POLICY_HEADERS)
         run_scan_with_policy_id(client, policy["id"], RAW_V1, "Target A")
@@ -219,8 +291,47 @@ class TestComparisonDeletedPolicyAndReports:
         assert client.delete(f"/api/reports/{middle_report_id}").status_code == 204
 
         latest_report_id = get_report_id_for_scan_number(client, 3)
-        data = client.get(f"/api/reports/{latest_report_id}/comparison").json()
+        resp = client.get(f"/api/reports/{latest_report_id}/comparison")
+        data = resp.json()
 
+        # The report itself still loads; only the comparison is unavailable,
+        # and it is NOT quietly re-pointed at the older scan #1.
+        assert client.get(f"/api/reports/{latest_report_id}").status_code == 200
+        assert resp.status_code == 200
+        assert data["has_comparison"] is False
+        assert data["reason"] == "previous_report_unavailable"
+
+    def test_deleting_one_report_does_not_affect_other_comparisons(self, auth_client):
+        client, _ = auth_client
+        policy = make_policy(client, "Chain Policy", COMPARISON_POLICY_HEADERS)
+        for raw in (RAW_V1, RAW_V1, RAW_V1, RAW_V2_CHANGED_AND_ADDED):
+            run_scan_with_policy_id(client, policy["id"], raw, "Target A")
+
+        assert client.delete(f"/api/reports/{get_report_id_for_scan_number(client, 2)}").status_code == 204
+
+        fourth = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 4)}/comparison").json()
+        assert fourth["has_comparison"] is True
+        assert fourth["previous_report"]["scan_number"] == 3
+        third = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 3)}/comparison").json()
+        assert third["reason"] == "previous_report_unavailable"
+
+    def test_report_saved_without_a_stored_link_still_falls_back_dynamically(self, auth_client):
+        """Reports saved before the link existed have previous_report_id NULL."""
+        from app import models
+        from app.database import SessionLocal
+
+        client, _ = auth_client
+        policy = make_policy(client, "Legacy Policy", COMPARISON_POLICY_HEADERS)
+        for raw in (RAW_V1, RAW_V1, RAW_V2_CHANGED_AND_ADDED):
+            run_scan_with_policy_id(client, policy["id"], raw, "Target A")
+        latest_id = get_report_id_for_scan_number(client, 3)
+        with SessionLocal() as db:
+            report = db.get(models.ScanReport, latest_id)
+            report.previous_report_id = None
+            db.commit()
+        assert client.delete(f"/api/reports/{get_report_id_for_scan_number(client, 2)}").status_code == 204
+
+        data = client.get(f"/api/reports/{latest_id}/comparison").json()
         assert data["has_comparison"] is True
         assert data["previous_report"]["scan_number"] == 1
 

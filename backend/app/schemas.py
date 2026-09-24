@@ -266,6 +266,7 @@ class ScanReportSummary(BaseModel):
     score: float
     grade: str
     scanned_at: datetime
+    previous_report_id: str | None = None
 
     class Config:
         from_attributes = True
@@ -302,6 +303,7 @@ class ScanReportOut(BaseModel):
 class ComparisonReportRef(BaseModel):
     id: str
     scan_number: int
+    target: str | None = None
     score: float
     grade: str
     scanned_at: datetime
@@ -398,7 +400,15 @@ class ComparisonResponse(BaseModel):
     # Populated only when has_comparison is False - explains why, so the
     # frontend can show the right empty-state copy (see app.core.scan_comparison).
     reason: (
-        Literal["ad_hoc_policy", "raw_default_target", "policy_version_changed", "no_previous_scan"] | None
+        Literal[
+            "ad_hoc_policy",
+            "raw_default_target",
+            "different_policy",
+            "policy_version_changed",
+            "previous_report_unavailable",
+            "no_previous_scan",
+        ]
+        | None
     ) = None
     previous_report: ComparisonReportRef | None = None
     latest_report: ComparisonReportRef | None = None

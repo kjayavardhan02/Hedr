@@ -3,17 +3,25 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
-import { roundDelta } from "@/lib/format";
-import type { ComparisonChanges, ComparisonResponse } from "@/lib/types";
+import { formatDateTime, roundDelta } from "@/lib/format";
+import type { ComparisonChanges, ComparisonReportRef, ComparisonResponse } from "@/lib/types";
 
 const REASON_TEXT: Record<string, { title: string; body: string }> = {
   no_previous_scan: {
-    title: "No previous scan available.",
-    body: "This is the first scan for this target under this policy version.",
+    title: "Comparison unavailable.",
+    body: "No previous scan was found for this target using the same policy and policy version.",
+  },
+  different_policy: {
+    title: "Comparison unavailable —",
+    body: "the previous scan used a different policy.",
   },
   policy_version_changed: {
-    title: "No comparable scan available.",
-    body: "The previous scan used a different policy version.",
+    title: "Comparison unavailable —",
+    body: "the previous scan used a different policy version.",
+  },
+  previous_report_unavailable: {
+    title: "Previous comparison unavailable.",
+    body: "The previous eligible scan is no longer available.",
   },
   raw_default_target: {
     title: "Comparison unavailable.",
@@ -269,14 +277,29 @@ function ComparisonDetails({ changes }: { changes: ComparisonChanges }) {
   );
 }
 
+function ScanMeta({ label, scan }: { label: string; scan: ComparisonReportRef }) {
+  return (
+    <div className="cmp-scan-meta">
+      <span className="cmp-stat-label">{label}</span>
+      <span className="cmp-scan-meta-name">{scan.target ?? "—"}</span>
+      <span className="cmp-scan-meta-line">
+        Scan #{scan.scan_number} · {scan.score} / 100 · {scan.grade}
+      </span>
+      <span className="field-hint" style={{ margin: 0 }}>
+        {formatDateTime(scan.scanned_at)}
+      </span>
+    </div>
+  );
+}
+
 function ComparisonDetailsModal({
-  previousScan,
-  latestScan,
+  previous,
+  latest,
   changes,
   onClose,
 }: {
-  previousScan: number;
-  latestScan: number;
+  previous: ComparisonReportRef;
+  latest: ComparisonReportRef;
   changes: ComparisonChanges;
   onClose: () => void;
 }) {
@@ -303,15 +326,14 @@ function ComparisonDetailsModal({
         <div className="modal-header">
           <div className="modal-header-text">
             <h3>Changes Since Previous Scan</h3>
-            <div className="modal-header-meta">
-              <span className="field-hint" style={{ margin: 0 }}>
-                Scan #{previousScan} → Scan #{latestScan}
-              </span>
-            </div>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
             ✕
           </button>
+        </div>
+        <div className="cmp-scan-meta-row">
+          <ScanMeta label="Previous scan" scan={previous} />
+          <ScanMeta label="Current scan" scan={latest} />
         </div>
         <div className="modal-body" style={{ marginTop: 18 }}>
           <ComparisonDetails changes={changes} />
@@ -435,8 +457,8 @@ export function ComparisonPanel({ reportId }: { reportId: string }) {
 
       {detailsOpen && (
         <ComparisonDetailsModal
-          previousScan={previous_report.scan_number}
-          latestScan={latest_report.scan_number}
+          previous={previous_report}
+          latest={latest_report}
           changes={changes}
           onClose={() => setDetailsOpen(false)}
         />

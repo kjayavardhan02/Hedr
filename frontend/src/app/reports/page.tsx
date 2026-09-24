@@ -7,7 +7,7 @@ import type { Policy, ScanReportSummary } from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
-import { roundDelta } from "@/lib/format";
+import { normalizeTargetName, roundDelta } from "@/lib/format";
 
 function gradeBadgeClass(grade: string): string {
   if (grade === "A" || grade === "B") return "badge-PASS";
@@ -27,21 +27,25 @@ function formatDate(iso: string): string {
 // identity, so those scans are never compared.
 const DEFAULT_RAW_TARGET_NAME = "HTTP Response Scan";
 
-/** Client-side score delta per report, against its immediately-earlier
- * report sharing the same target+policy+version - the same comparison
- * identity the backend's /comparison endpoint uses. Ad-hoc reports
- * (policy_id === null) and unnamed raw scans are never compared, matching
- * that endpoint's rules.
- * This is a cheap visual hint only; the authoritative diff lives in
+/** Score change per report, shown only when a valid comparison exists.
+ * Mirrors the backend: reports saved with a stored previous scan use exactly
+ * that scan (no delta if it has been deleted); older reports fall back to the
+ * immediately earlier scan with the same source, target (raw names compared
+ * loosely), policy and policy version. Ad-hoc policies and unnamed raw scans
+ * are never compared. A cheap visual hint - the authoritative diff lives in
  * ComparisonPanel on the report detail page. */
 function computeScoreDeltas(reports: ScanReportSummary[]): Map<string, number> {
   const deltas = new Map<string, number>();
+  const byId = new Map(reports.map((r) => [r.id, r]));
   const groups = new Map<string, ScanReportSummary[]>();
 
+  const isAnonymous = (r: ScanReportSummary) =>
+    r.source === "raw" && normalizeTargetName(r.target) === normalizeTargetName(DEFAULT_RAW_TARGET_NAME);
+
   for (const r of reports) {
-    if (!r.policy_id) continue;
-    if (r.source === "raw" && r.target === DEFAULT_RAW_TARGET_NAME) continue;
-    const key = `${r.target ?? ""}|${r.policy_id}|${r.policy_version}`;
+    if (!r.policy_id || isAnonymous(r)) continue;
+    const target = r.source === "raw" ? normalizeTargetName(r.target) : (r.target ?? "");
+    const key = `${r.source}|${target}|${r.policy_id}|${r.policy_version}`;
     const group = groups.get(key) ?? [];
     group.push(r);
     groups.set(key, group);
@@ -51,8 +55,14 @@ function computeScoreDeltas(reports: ScanReportSummary[]): Map<string, number> {
     const sorted = [...group].sort(
       (a, b) => new Date(a.scanned_at).getTime() - new Date(b.scanned_at).getTime()
     );
-    for (let i = 1; i < sorted.length; i++) {
-      deltas.set(sorted[i].id, roundDelta(sorted[i].score - sorted[i - 1].score));
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      if (r.previous_report_id) {
+        const previous = byId.get(r.previous_report_id);
+        if (previous) deltas.set(r.id, roundDelta(r.score - previous.score));
+      } else if (i > 0) {
+        deltas.set(r.id, roundDelta(r.score - sorted[i - 1].score));
+      }
     }
   }
 

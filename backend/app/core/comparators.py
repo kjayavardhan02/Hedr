@@ -809,3 +809,29 @@ DIRECTIVE_GRAMMAR_HEADERS = {
 
 def get_comparator(header_name: str):
     return DIRECTIVE_GRAMMAR_HEADERS.get(header_name.lower(), exact_or_allowed_comparator)
+
+
+def values_equivalent(header: str, first: str | None, second: str | None) -> bool:
+    """Whether two actual response values mean the same thing for `header`.
+
+    Used to decide if a header really changed between two scans, so a change
+    of spacing, order or casing (`private, no-store` vs `no-store, private`)
+    is not reported as a change. Each header's own comparator is run in both
+    directions: both must accept the other, so one-way relations such as
+    "max-age is at least" or "extra parameters allowed" never count as equal."""
+    if first is None or second is None:
+        return first == second
+    if normalize_ws(first).lower() == normalize_ws(second).lower():
+        return True
+    comparator = get_comparator(header)
+    if comparator is exact_or_allowed_comparator:
+        return False  # plain token headers: normalised text was already compared
+    if "|" in first or "|" in second:
+        return False  # "|" would be read as an allowed-values list
+    try:
+        return (
+            comparator(header, first, second).status == Status.PASS
+            and comparator(header, second, first).status == Status.PASS
+        )
+    except Exception:  # a value we cannot parse is simply "not known to be equal"
+        return False

@@ -130,6 +130,8 @@ export interface ScanResult {
 export interface ScanReportSummary {
   id: string;
   scan_number: number;
+  /** The scan this one was compared against when saved, if any. */
+  previous_report_id: string | null;
   policy_id: string | null;
   policy_name: string;
   policy_version: string;
@@ -161,6 +163,7 @@ export interface ScanReport {
 export interface ComparisonReportRef {
   id: string;
   scan_number: number;
+  target: string | null;
   score: number;
   grade: string;
   scanned_at: string;
@@ -257,7 +260,9 @@ export interface ComparisonResponse {
   reason:
     | "ad_hoc_policy"
     | "raw_default_target"
+    | "different_policy"
     | "policy_version_changed"
+    | "previous_report_unavailable"
     | "no_previous_scan"
     | null;
   previous_report: ComparisonReportRef | null;

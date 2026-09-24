@@ -442,3 +442,218 @@ class TestBuildComparisonForReport:
 
         assert result.has_comparison is True
         assert result.summary.score_delta == 10.0
+
+
+class TestTargetNameNormalization:
+    @pytest.mark.parametrize(
+        "name", ["Production API", " production api ", "PRODUCTION API", "Production    API", "\tProduction \n API"]
+    )
+    def test_equivalent_names_normalize_identically(self, name):
+        assert scan_comparison.normalize_target_name(name) == "production api"
+
+    def test_different_names_stay_different(self):
+        assert scan_comparison.normalize_target_name("Production API") != scan_comparison.normalize_target_name(
+            "Staging API"
+        )
+
+    def test_none_and_blank_are_empty(self):
+        assert scan_comparison.normalize_target_name(None) == ""
+        assert scan_comparison.normalize_target_name("   ") == ""
+
+    @pytest.mark.parametrize("name", ["HTTP Response Scan", "http response scan", "  HTTP   RESPONSE  SCAN "])
+    def test_anonymous_default_is_detected_in_any_form(self, name):
+        assert scan_comparison.is_anonymous_raw_target(_report(target=name)) is True
+
+    def test_only_raw_scans_can_be_anonymous(self):
+        report = _report(target="HTTP Response Scan")
+        report.source = "url"
+        assert scan_comparison.is_anonymous_raw_target(report) is False
+
+
+class TestTargetMatchingRules:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        self.db = SessionLocal()
+        self.owner_id = f"owner-{uuid.uuid4().hex}"
+        yield
+        self.db.close()
+
+    def _save(self, **overrides):
+        report = _report(owner_id=self.owner_id, **overrides)
+        self.db.add(report)
+        self.db.commit()
+        return report
+
+    def test_raw_names_match_loosely(self):
+        now = datetime.now(timezone.utc)
+        earlier = self._save(target="Production API", scanned_at=now - timedelta(hours=1))
+        current = self._save(target="  production   api", scanned_at=now)
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current).id == earlier.id
+
+    def test_url_targets_match_exactly_only(self):
+        now = datetime.now(timezone.utc)
+        for target in ("https://Example.com/Path", "https://example.com/path"):
+            report = _report(owner_id=self.owner_id, target=target, scanned_at=now - timedelta(hours=1))
+            report.source = "url"
+            self.db.add(report)
+        self.db.commit()
+        current = _report(owner_id=self.owner_id, target="https://example.com/PATH", scanned_at=now)
+        current.source = "url"
+        self.db.add(current)
+        self.db.commit()
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current) is None
+
+    def test_a_typed_name_never_matches_a_fetched_url(self):
+        now = datetime.now(timezone.utc)
+        fetched = _report(owner_id=self.owner_id, target="https://example.com", scanned_at=now - timedelta(hours=1))
+        fetched.source = "url"
+        self.db.add(fetched)
+        self.db.commit()
+        current = self._save(target="https://example.com", scanned_at=now)
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current) is None
+
+    def test_selects_the_immediately_preceding_of_several(self):
+        now = datetime.now(timezone.utc)
+        self._save(scan_number=1, scanned_at=now - timedelta(hours=3))
+        second = self._save(scan_number=2, scanned_at=now - timedelta(hours=2))
+        third = self._save(scan_number=3, scanned_at=now - timedelta(hours=1))
+        current = self._save(scan_number=4, scanned_at=now)
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current).id == third.id
+        assert scan_comparison.find_previous_comparable_report(self.db, third).id == second.id
+
+    def test_reasons_distinguish_policy_from_version(self):
+        now = datetime.now(timezone.utc)
+        self._save(policy_id="policy-A", policy_version="v1", scanned_at=now - timedelta(hours=2))
+        other_policy = self._save(policy_id="policy-B", policy_version="v1", scanned_at=now - timedelta(hours=1))
+        assert scan_comparison.build_comparison_for_report(self.db, other_policy).reason == "different_policy"
+
+        new_version = self._save(policy_id="policy-B", policy_version="v2", scanned_at=now)
+        assert scan_comparison.build_comparison_for_report(self.db, new_version).reason == "policy_version_changed"
+
+    def test_reason_describes_the_most_recent_scan_of_the_target(self):
+        now = datetime.now(timezone.utc)
+        self._save(target="Staging API", policy_id="policy-Z", scanned_at=now - timedelta(hours=2))
+        current = self._save(target="Production API", scanned_at=now)
+
+        assert scan_comparison.build_comparison_for_report(self.db, current).reason == "no_previous_scan"
+
+    def test_stored_previous_that_no_longer_exists_is_unavailable(self):
+        now = datetime.now(timezone.utc)
+        older = self._save(scanned_at=now - timedelta(hours=2))
+        current = self._save(scanned_at=now)
+        current.previous_report_id = "deleted-report-id"
+        self.db.commit()
+
+        result = scan_comparison.build_comparison_for_report(self.db, current)
+
+        assert result.has_comparison is False
+        assert result.reason == "previous_report_unavailable"
+        assert older.id != current.previous_report_id  # not re-pointed at the older scan
+
+    def test_stored_previous_owned_by_someone_else_is_treated_as_unavailable(self):
+        now = datetime.now(timezone.utc)
+        foreign = _report(owner_id="someone-else", scanned_at=now - timedelta(hours=1))
+        self.db.add(foreign)
+        self.db.commit()
+        current = self._save(scanned_at=now)
+        current.previous_report_id = foreign.id
+        self.db.commit()
+
+        assert scan_comparison.build_comparison_for_report(self.db, current).reason == "previous_report_unavailable"
+
+
+class TestSemanticChangeDetection:
+    def _headers(self, name, value):
+        return [_header_finding(header=name, actual_value=value, status="PASS")]
+
+    @pytest.mark.parametrize(
+        "header, before, after",
+        [
+            ("Cache-Control", "private, no-store", "no-store,   private"),
+            ("Cache-Control", "PRIVATE, No-Store", "private, no-store"),
+            ("Access-Control-Allow-Origin", "https://Example.com", "https://example.com/"),
+            ("X-XSS-Protection", "1; mode=block", "1;mode=block"),
+            ("Permissions-Policy", "geolocation=(), camera=()", "camera=(),  geolocation=()"),
+            ("Strict-Transport-Security", "max-age=100; includeSubDomains", "includeSubDomains;max-age=100"),
+            ("X-Frame-Options", "DENY", "  deny "),
+            ("Referrer-Policy", "unsafe-url, strict-origin", "strict-origin"),
+        ],
+    )
+    def test_formatting_only_differences_are_not_changes(self, header, before, after):
+        result = scan_comparison.compare_reports(
+            _report(findings=self._headers(header, before)), _report(findings=self._headers(header, after))
+        )
+        assert result.changes.headers_changed == [], (before, after)
+
+    @pytest.mark.parametrize(
+        "header, before, after",
+        [
+            ("Cache-Control", "private, no-store", "private, no-store, max-age=60"),
+            ("Cache-Control", "private, no-store", "public, no-store"),
+            ("Strict-Transport-Security", "max-age=100", "max-age=200"),
+            ("Access-Control-Allow-Origin", "https://a.com", "https://b.com"),
+            ("Access-Control-Allow-Origin", "https://a.com", "*"),
+            ("X-XSS-Protection", "1; mode=block", "0"),
+            ("X-XSS-Protection", "1; mode=block", "1; mode=block; report=/r"),
+            ("Permissions-Policy", "camera=()", "camera=(self)"),
+            ("X-Frame-Options", "DENY", "SAMEORIGIN"),
+            ("Referrer-Policy", "strict-origin", "unsafe-url"),
+            ("X-Content-Type-Options", "nosniff", "sniff"),
+        ],
+    )
+    def test_real_differences_are_still_changes(self, header, before, after):
+        result = scan_comparison.compare_reports(
+            _report(findings=self._headers(header, before)), _report(findings=self._headers(header, after))
+        )
+        assert len(result.changes.headers_changed) == 1, (before, after)
+
+    def test_unknown_header_compares_by_normalised_text(self):
+        same = scan_comparison.compare_reports(
+            _report(findings=self._headers("X-Custom", "a  b")), _report(findings=self._headers("X-Custom", "A b"))
+        )
+        different = scan_comparison.compare_reports(
+            _report(findings=self._headers("X-Custom", "a b")), _report(findings=self._headers("X-Custom", "a c"))
+        )
+        assert same.changes.headers_changed == []
+        assert len(different.changes.headers_changed) == 1
+
+    def test_csp_source_order_and_case_are_not_a_directive_change(self):
+        before = _report(csp_finding=_csp_finding(directives={"script-src": ["'self'", "https://A.com"]}))
+        after = _report(csp_finding=_csp_finding(directives={"script-src": ["https://a.com", "'self'"]}))
+        assert scan_comparison.compare_reports(before, after).changes.csp_changes.directive_changes == []
+
+    def test_csp_a_different_source_is_a_directive_change(self):
+        before = _report(csp_finding=_csp_finding(directives={"script-src": ["'self'"]}))
+        after = _report(csp_finding=_csp_finding(directives={"script-src": ["'self'", "https://cdn.com"]}))
+        assert len(scan_comparison.compare_reports(before, after).changes.csp_changes.directive_changes) == 1
+
+
+class TestEnsureSchema:
+    def test_adds_the_column_to_an_older_database_and_is_idempotent(self, tmp_path):
+        from sqlalchemy import create_engine, inspect, text
+
+        from app.database import ensure_schema
+
+        engine = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
+        with engine.begin() as conn:
+            conn.execute(text("CREATE TABLE scan_reports (id VARCHAR PRIMARY KEY, owner_id VARCHAR)"))
+            conn.execute(text("INSERT INTO scan_reports (id, owner_id) VALUES ('r1', 'u1')"))
+
+        ensure_schema(engine)
+        ensure_schema(engine)  # running it again must be harmless
+
+        columns = {c["name"] for c in inspect(engine).get_columns("scan_reports")}
+        assert "previous_report_id" in columns
+        with engine.connect() as conn:
+            assert conn.execute(text("SELECT previous_report_id FROM scan_reports")).scalar() is None
+
+    def test_does_nothing_when_the_table_does_not_exist_yet(self, tmp_path):
+        from sqlalchemy import create_engine
+
+        from app.database import ensure_schema
+
+        ensure_schema(create_engine(f"sqlite:///{tmp_path / 'empty.db'}"))

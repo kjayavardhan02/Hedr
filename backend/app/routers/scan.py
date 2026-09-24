@@ -7,7 +7,7 @@ from app.core.deps import get_current_user
 from app.core.fetcher import FetchError, SSRFBlockedError, fetch_headers
 from app.core.header_parser import RawResponseParseError, parse_raw_response
 from app.core.policy_engine import run_scan
-from app.core.scan_comparison import DEFAULT_RAW_TARGET_NAME
+from app.core.scan_comparison import DEFAULT_RAW_TARGET_NAME, find_previous_comparable_report
 from app.database import get_db
 from app.schemas import CSPPolicy, PolicyHeaderIn, ScanRequest, ScanResult, ScanSource
 
@@ -120,6 +120,10 @@ def scan(
             ),
             scanned_at=scan_result.scanned_at,
         )
+        # Remember which scan this one is compared against, so deleting that
+        # scan later makes the comparison unavailable rather than re-pointing it.
+        previous = find_previous_comparable_report(db, report)
+        report.previous_report_id = previous.id if previous else None
         db.add(report)
         db.commit()
     except Exception:

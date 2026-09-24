@@ -9,9 +9,12 @@ re-evaluates a policy or recomputes a score.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.comparators import values_equivalent
 from app.schemas import (
     ComparisonChanges,
     ComparisonReportRef,
@@ -34,48 +37,73 @@ _FAIL = "FAIL"
 # default could come from entirely unrelated systems, so they never compare.
 DEFAULT_RAW_TARGET_NAME = "HTTP Response Scan"
 
+# A user-typed name is compared loosely (case, surrounding and repeated
+# spaces ignored) so "Production API" and " production   api " are one target.
+# The original spelling is always kept for display.
+
+
+def normalize_target_name(name: str | None) -> str:
+    return re.sub(r"\s+", " ", (name or "").strip()).lower()
+
 
 def is_anonymous_raw_target(report: models.ScanReport) -> bool:
-    return report.source == "raw" and report.target == DEFAULT_RAW_TARGET_NAME
+    return report.source == "raw" and normalize_target_name(report.target) == normalize_target_name(
+        DEFAULT_RAW_TARGET_NAME
+    )
 
 
-def find_previous_comparable_report(db: Session, current: models.ScanReport) -> models.ScanReport | None:
-    """Same user + target + policy identity + policy version, scanned
-    strictly earlier, most recent first. Ad-hoc reports (no policy_id) have
-    no stable identity to compare across scans, so they never match; nor do
-    raw-response scans left at the default target name."""
-    if current.policy_id is None or is_anonymous_raw_target(current):
-        return None
+def _same_target(current: models.ScanReport, other: models.ScanReport) -> bool:
+    """Same logical target: raw scans by normalised name, URL scans by exact
+    fetched URL (paths are case-sensitive, so no loose matching there). A
+    typed name and a fetched URL are never the same target."""
+    if current.source != other.source:
+        return False
+    if current.source == "raw":
+        return normalize_target_name(current.target) == normalize_target_name(other.target)
+    return current.target == other.target
+
+
+def _earlier_reports(db: Session, current: models.ScanReport):
+    """The same user's earlier reports of the same kind, most recent first."""
     return (
         db.query(models.ScanReport)
         .filter(
             models.ScanReport.owner_id == current.owner_id,
-            models.ScanReport.target == current.target,
-            models.ScanReport.policy_id == current.policy_id,
-            models.ScanReport.policy_version == current.policy_version,
+            models.ScanReport.source == current.source,
             models.ScanReport.id != current.id,
             models.ScanReport.scanned_at < current.scanned_at,
         )
         .order_by(models.ScanReport.scanned_at.desc(), models.ScanReport.id.desc())
-        .first()
     )
 
 
-def _has_prior_scan_different_version(db: Session, current: models.ScanReport) -> bool:
-    """Used only to choose the empty-state reason/message - never as a
-    comparison source. True when a prior report exists for the same
-    user+target+policy but under a different policy_version."""
-    return (
-        db.query(models.ScanReport)
-        .filter(
-            models.ScanReport.owner_id == current.owner_id,
-            models.ScanReport.target == current.target,
-            models.ScanReport.policy_id == current.policy_id,
-            models.ScanReport.id != current.id,
-            models.ScanReport.scanned_at < current.scanned_at,
-        )
-        .first()
-    ) is not None
+def find_previous_comparable_report(db: Session, current: models.ScanReport) -> models.ScanReport | None:
+    """The immediately preceding eligible scan: same user, target, policy and
+    policy version, scanned strictly earlier. Ad-hoc reports (no policy_id)
+    and raw-response scans left at the default target name have no stable
+    identity, so they never match."""
+    if current.policy_id is None or is_anonymous_raw_target(current):
+        return None
+    for candidate in _earlier_reports(db, current).filter(
+        models.ScanReport.policy_id == current.policy_id,
+        models.ScanReport.policy_version == current.policy_version,
+    ):
+        if _same_target(current, candidate):
+            return candidate
+    return None
+
+
+def _why_no_comparison(db: Session, current: models.ScanReport) -> str:
+    """Explains a missing comparison by looking at the most recent earlier scan
+    of the same target, whatever policy it used."""
+    for candidate in _earlier_reports(db, current):
+        if not _same_target(current, candidate):
+            continue
+        if candidate.policy_id != current.policy_id:
+            return "different_policy"
+        if candidate.policy_version != current.policy_version:
+            return "policy_version_changed"
+    return "no_previous_scan"
 
 
 def build_comparison_for_report(db: Session, report: models.ScanReport) -> ComparisonResponse:
@@ -84,12 +112,19 @@ def build_comparison_for_report(db: Session, report: models.ScanReport) -> Compa
     if is_anonymous_raw_target(report):
         return ComparisonResponse(has_comparison=False, reason="raw_default_target")
 
+    if report.previous_report_id:
+        # The scan this one was compared against when it was saved. If it has
+        # been deleted the comparison is unavailable - never re-pointed at an
+        # older scan.
+        previous = db.get(models.ScanReport, report.previous_report_id)
+        if previous is None or previous.owner_id != report.owner_id:
+            return ComparisonResponse(has_comparison=False, reason="previous_report_unavailable")
+        return compare_reports(previous, report)
+
+    # Reports saved before the link was recorded (or with no earlier scan).
     previous = find_previous_comparable_report(db, report)
     if previous is None:
-        if _has_prior_scan_different_version(db, report):
-            return ComparisonResponse(has_comparison=False, reason="policy_version_changed")
-        return ComparisonResponse(has_comparison=False, reason="no_previous_scan")
-
+        return ComparisonResponse(has_comparison=False, reason=_why_no_comparison(db, report))
     return compare_reports(previous, report)
 
 
@@ -131,6 +166,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
         previous_report=ComparisonReportRef(
             id=previous.id,
             scan_number=previous.scan_number,
+            target=previous.target,
             score=previous.score,
             grade=previous.grade,
             scanned_at=previous.scanned_at,
@@ -138,6 +174,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
         latest_report=ComparisonReportRef(
             id=latest.id,
             scan_number=latest.scan_number,
+            target=latest.target,
             score=latest.score,
             grade=latest.grade,
             scanned_at=latest.scanned_at,
@@ -170,7 +207,9 @@ def _diff_headers(
         elif prev_present and latest_present:
             prev_value = prev.get("actual_value")
             latest_value = latest.get("actual_value")
-            if prev_value != latest_value:
+            # Formatting-only differences (spacing, directive order, origin
+            # casing) are not changes; each header judges its own values.
+            if not values_equivalent(name, prev_value, latest_value):
                 changed.append(
                     HeaderChanged(header=name, previous_value=prev_value, latest_value=latest_value)
                 )
@@ -340,8 +379,13 @@ def _diff_directives(
     for directive in sorted(set(prev_directives) | set(latest_directives)):
         prev_value = prev_directives.get(directive)
         latest_value = latest_directives.get(directive)
-        if prev_value != latest_value:
+        if _source_set(prev_value) != _source_set(latest_value):
             changes.append(
                 CSPDirectiveChanged(directive=directive, previous_value=prev_value, latest_value=latest_value)
             )
     return changes
+
+
+def _source_set(sources: list[str] | None) -> frozenset[str] | None:
+    """CSP source order and casing carry no meaning, so directives compare as sets."""
+    return None if sources is None else frozenset(t.lower() for t in sources)

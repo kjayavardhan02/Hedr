@@ -54,3 +54,10 @@ export function roundDelta(delta: number): number {
   const rounded = Math.round(delta * 10) / 10;
   return Object.is(rounded, -0) ? 0 : rounded;
 }
+
+/** Target names are compared loosely (case, surrounding and repeated spaces
+ * ignored) so "Production API" and " production   api " are one target. The
+ * original spelling is always kept for display. Mirrors the backend. */
+export function normalizeTargetName(name: string | null | undefined): string {
+  return (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}

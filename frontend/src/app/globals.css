@@ -1078,6 +1078,34 @@ select:focus {
   font-weight: 700;
 }
 
+.cmp-scan-meta-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.cmp-scan-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+
+.cmp-scan-meta-name {
+  font-weight: 700;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.cmp-scan-meta-line {
+  font-size: 13px;
+}
+
 .cmp-title-block {
   flex: 1;
   min-width: 0;

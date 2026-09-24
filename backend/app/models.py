@@ -102,6 +102,12 @@ class ScanReport(Base):
     # resolves before treating it as a working link.
     policy_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     policy_name: Mapped[str] = mapped_column(String, nullable=False)
+    # The report this one was compared against when it was saved (the
+    # immediately preceding eligible scan), or null when there was none.
+    # Like policy_id it is a historical pointer, not a ForeignKey: if that
+    # report is later deleted the comparison is reported as unavailable
+    # instead of silently switching to an older scan.
+    previous_report_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # No real policy versioning exists yet - every report is stamped "v1"
     # until that's built, so the column already exists when it is.
     policy_version: Mapped[str] = mapped_column(String, nullable=False, default="v1")

@@ -18,3 +18,20 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_schema(bind=engine) -> None:
+    """Adds columns introduced after a database was first created.
+
+    create_all() only creates missing tables, never missing columns, and this
+    project has no migration tooling, so a new nullable column would otherwise
+    require deleting the database. Each entry here is idempotent."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(bind)
+    if "scan_reports" not in inspector.get_table_names():
+        return
+    existing = {c["name"] for c in inspector.get_columns("scan_reports")}
+    if "previous_report_id" not in existing:
+        with bind.begin() as conn:
+            conn.execute(text("ALTER TABLE scan_reports ADD COLUMN previous_report_id VARCHAR"))
