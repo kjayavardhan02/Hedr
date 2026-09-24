@@ -12,6 +12,8 @@ import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { Spinner } from "@/components/Spinner";
 
+const TARGET_NAME_MAX_LENGTH = 50;
+
 const EXAMPLE_RAW = `HTTP/1.1 200 OK
 Content-Type: text/html
 Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -158,11 +160,13 @@ export default function ScanPage() {
               <input
                 placeholder="e.g. My Staging Site"
                 value={targetName}
+                maxLength={TARGET_NAME_MAX_LENGTH}
                 onChange={(e) => setTargetName(e.target.value)}
               />
               <span className="field-hint">
                 There&apos;s no URL to label a pasted response with. Give it a name, or
-                leave this blank to use &quot;HTTP Response Scan&quot;.
+                leave this blank to use &quot;HTTP Response Scan&quot;. Up to {TARGET_NAME_MAX_LENGTH}{" "}
+                characters ({targetName.length}/{TARGET_NAME_MAX_LENGTH}).
               </span>
             </div>
             <div className="field">

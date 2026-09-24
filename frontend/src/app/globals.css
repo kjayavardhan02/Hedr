@@ -2434,12 +2434,24 @@ a {
   display: flex;
   align-items: center;
   gap: 24px;
-  flex-wrap: wrap;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.latest-scan-primary > .score-ring {
+  flex-shrink: 0;
 }
 
 .latest-scan-info {
-  flex: 0 1 auto;
-  min-width: 200px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Long targets wrap at spaces and only break inside a word when a single
+   word is wider than the space available. */
+.latest-scan-info .mono {
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .latest-scan-middle {
@@ -2635,6 +2647,11 @@ a {
   font-weight: 600;
   color: var(--text);
   white-space: normal;
+  /* width + max-width: 0 pins the column to 40% so long text wraps inside it
+     rather than widening it and squeezing the other columns. */
+  width: 40%;
+  max-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-table-name-inline {
@@ -2642,6 +2659,21 @@ a {
   align-items: center;
   justify-content: center;
   gap: 9px;
+  max-width: 100%;
+}
+
+/* Targets shown outside the dashboard: wrap at spaces, split a word only if it can't fit. */
+.policy-card-info .mono,
+.score-hero .mono {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-table-name-inline > .mono,
+.dashboard-table .dashboard-table-name-cell .mono {
+  min-width: 0;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-table-name-icon {

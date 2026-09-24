@@ -203,3 +203,25 @@ def test_scan_requires_auth(client):
         json={"source": "raw", "raw_response": RAW_RESPONSE, "policy": INLINE_POLICY},
     )
     assert resp.status_code == 401
+
+
+def test_scan_raw_target_name_of_exactly_50_characters_is_accepted(auth_client):
+    client, _ = auth_client
+    name = "x" * 50
+    resp = client.post(
+        "/api/scan",
+        json={"source": "raw", "raw_response": RAW_RESPONSE, "target_name": name, "policy": INLINE_POLICY},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["target"] == name
+
+
+def test_scan_raw_target_name_over_50_characters_is_rejected(auth_client):
+    client, _ = auth_client
+    resp = client.post(
+        "/api/scan",
+        json={"source": "raw", "raw_response": RAW_RESPONSE, "target_name": "x" * 51, "policy": INLINE_POLICY},
+    )
+    assert resp.status_code == 422
+    assert client.get("/api/reports").json() == []
+

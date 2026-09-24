@@ -166,7 +166,8 @@ class ScanRequest(BaseModel):
     raw_response: str | None = Field(default=None, max_length=200_000)
     # Only meaningful for source=raw, where there's no URL to label the
     # target with. Optional - defaults to "HTTP Response Scan" if omitted.
-    target_name: str | None = Field(default=None, max_length=200)
+    # Kept short: it is shown in tables and cards across the app.
+    target_name: str | None = Field(default=None, max_length=50)
     policy_id: str | None = None
     policy: PolicyCreate | None = None
 
