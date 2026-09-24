@@ -24,6 +24,8 @@ saved before this module grew richer keep working unchanged:
   - Referrer-Policy "a|b"      -> compared against the *effective* policy of
                                    the response (last recognised token).
   - Permissions-Policy "feature=(a b), feature=()" -> feature allowlists.
+  - X-Frame-Options "DENY|SAMEORIGIN|ALLOW-FROM https://a.com" -> any listed
+                                   option; ALLOW-FROM origins are normalised.
 
 Normalisation is deliberately per header: never a blanket lowercase or
 whitespace strip, because different syntaxes have different rules.
@@ -624,6 +626,75 @@ def origin_comparator(header: str, expected: str, actual: str | None) -> Compari
 
 
 # ---------------------------------------------------------------------------
+# X-Frame-Options ("DENY", "SAMEORIGIN", "ALLOW-FROM <origin>")
+# ---------------------------------------------------------------------------
+
+_XFO_ALLOW_FROM_RE = re.compile(r"^allow-from\s+(\S+)$", re.IGNORECASE)
+
+XFO_ALLOW_FROM_NOTE = (
+    " Note: ALLOW-FROM is obsolete and ignored by current browsers, so it gives "
+    "no real protection on its own - pair it with CSP 'frame-ancestors'."
+)
+
+
+def _uri_origin(uri: str) -> str:
+    """Only the origin of an ALLOW-FROM URI matters (a path is ignored)."""
+    try:
+        parts = urlsplit(uri)
+        parts.port  # noqa: B018 - validates the port
+    except ValueError:
+        return uri.lower()
+    if parts.scheme and parts.hostname:
+        return normalize_origin(f"{parts.scheme}://{parts.netloc}")
+    return uri.lower()
+
+
+def parse_allow_from(value: str) -> str | None:
+    """The normalised origin of an "ALLOW-FROM <uri>" value, else None."""
+    match = _XFO_ALLOW_FROM_RE.match(normalize_ws(value))
+    return _uri_origin(match.group(1)) if match else None
+
+
+def _normalize_xfo(value: str) -> str:
+    origin = parse_allow_from(value)
+    if origin is not None:
+        return f"allow-from {origin}"
+    return normalize_ws(value).lower()
+
+
+def x_frame_options_comparator(header: str, expected: str, actual: str | None) -> ComparisonOutcome:
+    options = [v.strip() for v in expected.split("|") if v.strip()]
+    if not options or actual is None:
+        return exact_or_allowed_comparator(header, expected, actual)
+
+    allowed = {_normalize_xfo(o) for o in options}
+    ok = _normalize_xfo(actual) in allowed
+    involves_allow_from = any(a.startswith("allow-from ") for a in allowed) or _normalize_xfo(
+        actual
+    ).startswith("allow-from ")
+
+    if len(options) > 1:
+        name = "allowed-values"
+        description = f"Value must be one of: {', '.join(normalize_ws(o) for o in options)}."
+        shown = " | ".join(normalize_ws(o) for o in options)
+    else:
+        name = "exact-value"
+        description = "Value must exactly match the policy."
+        shown = expected
+    if involves_allow_from:
+        description += XFO_ALLOW_FROM_NOTE
+
+    check = CheckResult(
+        name=name,
+        description=description,
+        status=Status.PASS if ok else Status.FAIL,
+        expected=shown,
+        actual=actual,
+    )
+    return ComparisonOutcome(check.status, [check])
+
+
+# ---------------------------------------------------------------------------
 # Permissions-Policy ("feature=(allowlist), feature=()")
 # ---------------------------------------------------------------------------
 
@@ -732,6 +803,7 @@ DIRECTIVE_GRAMMAR_HEADERS = {
     "x-xss-protection": x_xss_protection_comparator,
     "access-control-allow-origin": origin_comparator,
     "referrer-policy": referrer_policy_comparator,
+    "x-frame-options": x_frame_options_comparator,
 }
 
 

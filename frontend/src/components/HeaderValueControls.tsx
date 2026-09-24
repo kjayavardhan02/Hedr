@@ -10,12 +10,14 @@ import {
   parseHsts,
   parseOrigin,
   parsePermissionsPolicy,
+  parseXfo,
   parseXss,
   serializeCacheControl,
   serializeEnum,
   serializeHsts,
   serializeOrigin,
   serializePermissionsPolicy,
+  serializeXfo,
   serializeXss,
   type AllowlistMode,
   type HeaderKind,
@@ -61,6 +63,8 @@ function isRepresentable(kind: HeaderKind, headerName: string, value: string): b
       return parsePermissionsPolicy(value) !== null;
     case "xss":
       return parseXss(value) !== null;
+    case "xfo":
+      return parseXfo(value) !== null;
     case "enum":
       return parseEnum(headerName, value) !== null;
   }
@@ -360,6 +364,79 @@ function XssEditor({ value, onChange }: EditorProps) {
   );
 }
 
+function XFrameOptionsEditor({ value, onChange }: EditorProps) {
+  const parsed = parseXfo(value);
+  const [origins, setOrigins] = useState<string[]>(parsed?.allowFrom ?? []);
+
+  // Keep local rows (which may include blank ones being typed) in step with
+  // the stored value when it changes from outside this editor.
+  useEffect(() => {
+    const current = parseXfo(value);
+    if (current && serializeXfo({ ...current, allowFrom: origins }) !== value) {
+      setOrigins(current.allowFrom);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  if (!parsed) return null;
+
+  function update(nextOrigins: string[], change: Partial<{ deny: boolean; sameorigin: boolean }> = {}) {
+    setOrigins(nextOrigins);
+    onChange(serializeXfo({ ...parsed!, ...change, allowFrom: nextOrigins }));
+  }
+
+  return (
+    <div>
+      <div className="csp-directive-checks">
+        <label className="csp-directive-check">
+          <input
+            type="checkbox"
+            checked={parsed.deny}
+            onChange={(e) => update(origins, { deny: e.target.checked })}
+          />
+          <span className="mono">DENY</span>
+        </label>
+        <label className="csp-directive-check">
+          <input
+            type="checkbox"
+            checked={parsed.sameorigin}
+            onChange={(e) => update(origins, { sameorigin: e.target.checked })}
+          />
+          <span className="mono">SAMEORIGIN</span>
+        </label>
+      </div>
+
+      <div className="hv-group-label" style={{ marginTop: 10 }}>
+        <span className="mono">ALLOW-FROM</span> origins
+      </div>
+      {origins.map((origin, i) => (
+        <div className="hv-row" key={i}>
+          <input
+            className="hv-wide"
+            placeholder="https://example.com"
+            value={origin}
+            onChange={(e) => update(origins.map((o, j) => (j === i ? e.target.value : o)))}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => update(origins.filter((_, j) => j !== i))}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOrigins([...origins, ""])}>
+        + Add ALLOW-FROM origin
+      </button>
+      <span className="field-hint" style={{ display: "block", marginTop: 6 }}>
+        Tick more than one option to accept any of them. ALLOW-FROM is obsolete: current browsers ignore
+        it, so use CSP frame-ancestors for real protection.
+      </span>
+    </div>
+  );
+}
+
 function EnumEditor({ headerName, value, onChange }: EditorProps & { headerName: string }) {
   const options = ENUM_OPTIONS[headerName.trim().toLowerCase()] ?? [];
   const selected = parseEnum(headerName, value);
@@ -430,6 +507,7 @@ export function HeaderValueControls({ headerName, value, onChange }: Props) {
           {kind === "origin" && <OriginEditor value={value} onChange={onChange} />}
           {kind === "permissions-policy" && <PermissionsPolicyEditor value={value} onChange={onChange} />}
           {kind === "xss" && <XssEditor value={value} onChange={onChange} />}
+          {kind === "xfo" && <XFrameOptionsEditor value={value} onChange={onChange} />}
           {kind === "enum" && <EnumEditor headerName={headerName} value={value} onChange={onChange} />}
         </>
       )}

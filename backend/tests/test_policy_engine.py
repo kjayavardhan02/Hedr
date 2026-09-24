@@ -121,9 +121,32 @@ class TestXfoViaCspFrameAncestorsFallback:
         assert finding.checks[0].name == "presence"
 
     def test_falls_back_to_normal_missing_handling_for_unmapped_xfo_value(self):
-        # ALLOW-FROM is deprecated and not in the equivalence table - don't guess.
+        # A list of alternatives has no single frame-ancestors equivalent - don't guess.
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY|SAMEORIGIN", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors 'self'"})
+        assert finding.status == Status.FAIL
+        assert finding.checks[0].name == "presence"
+
+    def test_allow_from_policy_is_satisfied_by_matching_frame_ancestors_origin(self):
         ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="ALLOW-FROM https://example.com", required=True)
         finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors https://example.com"})
+        assert finding.status == Status.PASS
+        assert finding.checks[0].name == "csp-frame-ancestors-fallback"
+
+    def test_allow_from_fallback_compares_origins_not_text(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="ALLOW-FROM https://Example.com/page", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "frame-ancestors https://example.com:443/"})
+        assert finding.status == Status.PASS
+
+    def test_allow_from_fallback_fails_for_a_different_origin(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="ALLOW-FROM https://example.com", required=True)
+        for csp in ("frame-ancestors https://evil.com", "frame-ancestors 'none'", "frame-ancestors 'self'"):
+            finding = evaluate_header(ph, {"content-security-policy": csp})
+            assert finding.status == Status.FAIL, csp
+
+    def test_allow_from_without_csp_frame_ancestors_is_a_normal_missing_header(self):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value="ALLOW-FROM https://example.com", required=True)
+        finding = evaluate_header(ph, {"content-security-policy": "default-src 'self'"})
         assert finding.status == Status.FAIL
         assert finding.checks[0].name == "presence"
 
@@ -378,3 +401,24 @@ class TestBaselinesStillEvaluateCorrectly:
                     )
                     finding = evaluate_header(PolicyHeaderIn(**rule), {"permissions-policy": loosened})
                     assert finding.status == Status.FAIL, (baseline["name"], feature)
+
+
+class TestXFrameOptionsAllowFromThroughEvaluateHeader:
+    def _finding(self, expected, actual, required=True):
+        ph = PolicyHeaderIn(header_name="X-Frame-Options", expected_value=expected, required=required)
+        return evaluate_header(ph, {"x-frame-options": actual})
+
+    def test_matching_allow_from_scores_full(self):
+        finding = self._finding("ALLOW-FROM https://example.com", "allow-from  HTTPS://EXAMPLE.COM/")
+        assert finding.status == Status.PASS
+        assert finding.score_earned == finding.score_possible
+
+    def test_wrong_origin_scores_zero(self):
+        finding = self._finding("ALLOW-FROM https://example.com", "ALLOW-FROM https://evil.com")
+        assert finding.status == Status.FAIL
+        assert finding.score_earned == 0
+
+    def test_plain_deny_policy_behaviour_is_unchanged(self):
+        assert self._finding("DENY", "deny").status == Status.PASS
+        assert self._finding("DENY", "SAMEORIGIN").status == Status.FAIL
+        assert self._finding("", "anything").status == Status.PASS

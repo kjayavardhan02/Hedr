@@ -15,11 +15,11 @@ export type HeaderKind =
   | "origin"
   | "permissions-policy"
   | "xss"
+  | "xfo"
   | "enum";
 
 export const ENUM_OPTIONS: Record<string, string[]> = {
   "x-content-type-options": ["nosniff"],
-  "x-frame-options": ["DENY", "SAMEORIGIN"],
   "referrer-policy": [
     "no-referrer",
     "no-referrer-when-downgrade",
@@ -43,6 +43,7 @@ export function headerKind(headerName: string): HeaderKind | null {
   if (name === "access-control-allow-origin") return "origin";
   if (name === "permissions-policy") return "permissions-policy";
   if (name === "x-xss-protection") return "xss";
+  if (name === "x-frame-options") return "xfo";
   if (name in ENUM_OPTIONS) return "enum";
   return null;
 }
@@ -250,6 +251,40 @@ export function serializeXss(v: XssValue): string {
   if (v.enabled === "") return "";
   if (v.enabled === "0") return "0";
   return v.modeBlock ? "1; mode=block" : "1";
+}
+
+// --- X-Frame-Options ---------------------------------------------------------
+
+export interface XfoValue {
+  deny: boolean;
+  sameorigin: boolean;
+  /** Origins for ALLOW-FROM (obsolete: current browsers ignore it). */
+  allowFrom: string[];
+}
+
+export function parseXfo(value: string): XfoValue | null {
+  const result: XfoValue = { deny: false, sameorigin: false, allowFrom: [] };
+  for (const raw of value.split("|")) {
+    const item = raw.trim();
+    if (!item) continue;
+    const allowFrom = /^allow-from\s+(\S+)$/i.exec(item);
+    if (/^deny$/i.test(item)) result.deny = true;
+    else if (/^sameorigin$/i.test(item)) result.sameorigin = true;
+    else if (allowFrom) result.allowFrom.push(allowFrom[1]);
+    else return null;
+  }
+  return result;
+}
+
+export function serializeXfo(v: XfoValue): string {
+  const parts: string[] = [];
+  if (v.deny) parts.push("DENY");
+  if (v.sameorigin) parts.push("SAMEORIGIN");
+  for (const origin of v.allowFrom) {
+    const trimmed = origin.trim();
+    if (trimmed) parts.push(`ALLOW-FROM ${trimmed}`);
+  }
+  return parts.join("|");
 }
 
 // --- Enum headers ----------------------------------------------------------

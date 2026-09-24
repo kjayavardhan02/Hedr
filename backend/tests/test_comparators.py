@@ -2,6 +2,7 @@ import pytest
 
 from app.core.comparators import (
     cache_control_comparator,
+    x_frame_options_comparator,
     directive_list_comparator,
     exact_or_allowed_comparator,
     get_comparator,
@@ -125,8 +126,10 @@ class TestGetComparator:
         assert get_comparator("Permissions-Policy") is permissions_policy_comparator
 
     def test_defaults_to_exact_or_allowed(self):
-        assert get_comparator("X-Frame-Options") is exact_or_allowed_comparator
         assert get_comparator("Some-Unknown-Header") is exact_or_allowed_comparator
+
+    def test_x_frame_options_has_its_own_comparator(self):
+        assert get_comparator("X-Frame-Options") is x_frame_options_comparator
 
 
 PASS = Status.PASS
@@ -500,7 +503,6 @@ class TestDispatchForNewComparators:
         "header",
         [
             "X-Content-Type-Options",
-            "X-Frame-Options",
             "Cross-Origin-Opener-Policy",
             "Cross-Origin-Resource-Policy",
             "Cross-Origin-Embedder-Policy",
@@ -547,3 +549,80 @@ class TestPermissionsPolicySemicolonSeparatedPolicies:
             a = permissions_policy_comparator("Permissions-Policy", self.EXPECTED, actual)
             b = permissions_policy_comparator("Permissions-Policy", self.EXPECTED.replace("; ", ", "), actual)
             assert a.status == b.status == PASS
+
+
+class TestXFrameOptions:
+    H = "X-Frame-Options"
+
+    @pytest.mark.parametrize("actual", ["DENY", "deny", "  Deny  "])
+    def test_deny_formatting(self, actual):
+        assert x_frame_options_comparator(self.H, "DENY", actual).status == PASS
+
+    @pytest.mark.parametrize("actual", ["SAMEORIGIN", "sameorigin", " SameOrigin "])
+    def test_sameorigin_formatting(self, actual):
+        assert x_frame_options_comparator(self.H, "SAMEORIGIN", actual).status == PASS
+
+    def test_deny_and_sameorigin_are_different(self):
+        assert x_frame_options_comparator(self.H, "DENY", "SAMEORIGIN").status == FAIL
+        assert x_frame_options_comparator(self.H, "SAMEORIGIN", "DENY").status == FAIL
+
+    def test_allowed_list_of_plain_values(self):
+        assert x_frame_options_comparator(self.H, " DENY | SAMEORIGIN ", "sameorigin").status == PASS
+        assert x_frame_options_comparator(self.H, "DENY|SAMEORIGIN", "ALLOW-FROM https://x.com").status == FAIL
+
+    @pytest.mark.parametrize(
+        "actual",
+        [
+            "ALLOW-FROM https://example.com",
+            "allow-from https://example.com",
+            "ALLOW-FROM    https://example.com",
+            "  ALLOW-FROM https://example.com  ",
+            "ALLOW-FROM HTTPS://Example.COM/",
+            "ALLOW-FROM https://example.com:443",
+            "ALLOW-FROM https://example.com/some/page",
+        ],
+    )
+    def test_allow_from_matches_the_same_origin(self, actual):
+        assert x_frame_options_comparator(self.H, "ALLOW-FROM https://example.com", actual).status == PASS
+
+    @pytest.mark.parametrize(
+        "actual",
+        [
+            "ALLOW-FROM https://evil.com",
+            "ALLOW-FROM https://example.com.evil.com",
+            "ALLOW-FROM http://example.com",
+            "ALLOW-FROM https://sub.example.com",
+            "ALLOW-FROM https://example.com:8443",
+            "ALLOW-FROM",
+            "DENY",
+            "SAMEORIGIN",
+        ],
+    )
+    def test_allow_from_rejects_anything_else(self, actual):
+        assert x_frame_options_comparator(self.H, "ALLOW-FROM https://example.com", actual).status == FAIL
+
+    def test_allow_from_response_does_not_satisfy_deny_or_sameorigin(self):
+        assert x_frame_options_comparator(self.H, "DENY", "ALLOW-FROM https://example.com").status == FAIL
+        assert x_frame_options_comparator(self.H, "SAMEORIGIN", "ALLOW-FROM https://example.com").status == FAIL
+
+    def test_mixed_list_with_allow_from(self):
+        expected = "DENY|ALLOW-FROM https://a.com|ALLOW-FROM https://b.com"
+        assert x_frame_options_comparator(self.H, expected, "deny").status == PASS
+        assert x_frame_options_comparator(self.H, expected, "allow-from https://B.com/").status == PASS
+        assert x_frame_options_comparator(self.H, expected, "ALLOW-FROM https://c.com").status == FAIL
+        assert x_frame_options_comparator(self.H, expected, "SAMEORIGIN").status == FAIL
+
+    def test_missing_header_fails(self):
+        assert x_frame_options_comparator(self.H, "ALLOW-FROM https://example.com", None).status == FAIL
+
+    def test_obsolete_note_appears_only_when_allow_from_is_involved(self):
+        with_note = x_frame_options_comparator(self.H, "ALLOW-FROM https://example.com", "ALLOW-FROM https://example.com")
+        assert "obsolete" in with_note.checks[0].description
+        assert "frame-ancestors" in with_note.checks[0].description
+        without = x_frame_options_comparator(self.H, "DENY", "DENY")
+        assert "obsolete" not in without.checks[0].description
+
+    def test_note_also_shown_when_a_response_uses_allow_from_against_a_plain_policy(self):
+        outcome = x_frame_options_comparator(self.H, "DENY", "ALLOW-FROM https://example.com")
+        assert outcome.status == FAIL
+        assert "obsolete" in outcome.checks[0].description

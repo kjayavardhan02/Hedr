@@ -40,7 +40,8 @@ Stack: Next.js 15 + TypeScript (frontend) · Python + FastAPI + SQLite (backend)
 
 Header values are compared by meaning, not raw text, so harmless formatting differences no longer cause false FAILs while real security differences still fail. Policies still store one expected-value string per header, so existing policies keep working unchanged. CSP is excluded (own engine).
 
-- **Enum headers** (X-Content-Type-Options, X-Frame-Options, COOP, CORP, COEP, Access-Control-Allow-Credentials): whitespace and case normalised, `a|b` allowed-values.
+- **Enum headers** (X-Content-Type-Options, COOP, CORP, COEP, Access-Control-Allow-Credentials): whitespace and case normalised, `a|b` allowed-values.
+- **X-Frame-Options:** `DENY`, `SAMEORIGIN` and `ALLOW-FROM <origin>` (compared as origins, so casing, trailing `/`, default port and any path are ignored), alone or as a `|` list. The check notes that ALLOW-FROM is obsolete and ignored by current browsers. When the header is missing, a CSP `frame-ancestors` listing the same origin satisfies an ALLOW-FROM policy. The builder has DENY / SAMEORIGIN checkboxes plus an ALLOW-FROM origins list.
 - **Referrer-Policy:** the last recognised token of a multi-token response is the effective policy.
 - **Strict-Transport-Security:** order- and spacing-insensitive, `max-age` compared as `>=`; hardened for empty segments, quoted values and duplicate directives.
 - **Cache-Control:** directives matched in any order and spacing; extra directives fail by default, a trailing `+` allows them, `!name` prohibits a directive, and `max-age` supports `=`, `>=`, `<=`.

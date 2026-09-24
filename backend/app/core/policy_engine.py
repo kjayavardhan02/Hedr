@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 
 from app.core import csp_analyzer
-from app.core.comparators import get_comparator
+from app.core.comparators import get_comparator, normalize_origin, parse_allow_from
 from app.core.csp_findings import CSPFindingId, severity_for
 from app.core.scoring import get_severity, get_weight, grade_for_score
 from app.schemas import (
@@ -85,10 +85,18 @@ def _evaluate_xfo_via_csp_frame_ancestors(
         ]
 
     equivalent = XFO_TO_FRAME_ANCESTORS_EQUIVALENT.get(expected.lower())
+    sources = {s.lower() for s in frame_ancestors_sources}
     if equivalent is None:
-        return None
+        # "ALLOW-FROM <origin>" is equivalent to frame-ancestors listing that
+        # origin (compared as origins, so casing/default ports don't matter).
+        equivalent = parse_allow_from(expected)
+        if equivalent is None:
+            return None
+        sources = {
+            s.lower() if s.startswith("'") else normalize_origin(s) for s in frame_ancestors_sources
+        }
 
-    ok = equivalent in {s.lower() for s in frame_ancestors_sources}
+    ok = equivalent in sources
     return Status.PASS if ok else Status.FAIL, [
         CheckResult(
             name="csp-frame-ancestors-fallback",
