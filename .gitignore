@@ -19,3 +19,6 @@ frontend/npm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Local planning docs and specs (kept out of the repo)
+Feature Docs/
