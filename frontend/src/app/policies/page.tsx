@@ -7,8 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import type { Policy } from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
-import { DateRangeFilter, FilterBar, SearchField, type FilterTab } from "@/components/FilterBar";
-import { inDateRange } from "@/lib/filters";
+import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
+import { describeDateRange, inDateRange } from "@/lib/filters";
 import { Highlight } from "@/components/Highlight";
 
 type PolicyFilterField = "name" | "date" | "type";
@@ -67,33 +67,55 @@ export default function PoliciesPage() {
     }
   }
 
+  // Filters are independent and combine (AND): a policy must match every active
+  // one. `filterField` is only which tab is being edited.
   const [filterField, setFilterField] = useState<PolicyFilterField>("name");
-  const [filterText, setFilterText] = useState("");
+  const [nameText, setNameText] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<PolicyTypeFilter>("");
-  const filterActive =
-    filterField === "date" ? Boolean(dateFrom || dateTo) : filterField === "type" ? typeFilter !== "" : filterText.trim() !== "";
+  const hasName = nameText.trim() !== "";
+  const hasDate = Boolean(dateFrom || dateTo);
+  const hasType = typeFilter !== "";
+  const filterActive = hasName || hasDate || hasType;
 
   function clearFilter() {
-    setFilterText("");
+    setNameText("");
     setDateFrom("");
     setDateTo("");
     setTypeFilter("");
   }
 
+  const filterChips: FilterChip[] = [
+    hasName && { key: "name", label: `Name: ${nameText.trim()}`, onRemove: () => setNameText("") },
+    hasDate && {
+      key: "date",
+      label: `Updated: ${describeDateRange(dateFrom, dateTo)}`,
+      onRemove: () => {
+        setDateFrom("");
+        setDateTo("");
+      },
+    },
+    hasType && {
+      key: "type",
+      label: typeFilter === "csp" ? "Includes CSP" : "Headers only",
+      onRemove: () => setTypeFilter(""),
+    },
+  ].filter((c): c is FilterChip => Boolean(c));
+
   // The filter applies to both "Your policies" and the built-in baselines.
   const visiblePolicies = useMemo(() => {
     if (!filterActive) return policies;
-    const needle = filterText.trim().toLowerCase();
-    return policies.filter((p) => {
-      if (filterField === "name") return p.name.toLowerCase().includes(needle);
-      if (filterField === "type") return typeFilter === "csp" ? Boolean(p.csp_policy) : !p.csp_policy;
-      return inDateRange(p.updated_at, dateFrom, dateTo);
-    });
-  }, [policies, filterActive, filterField, filterText, typeFilter, dateFrom, dateTo]);
+    const needle = nameText.trim().toLowerCase();
+    return policies.filter(
+      (p) =>
+        (!needle || p.name.toLowerCase().includes(needle)) &&
+        (!typeFilter || (typeFilter === "csp" ? Boolean(p.csp_policy) : !p.csp_policy)) &&
+        inDateRange(p.updated_at, dateFrom, dateTo)
+    );
+  }, [policies, filterActive, nameText, typeFilter, dateFrom, dateTo]);
 
-  const nameQuery = filterField === "name" ? filterText : "";
+  const nameQuery = nameText;
   const baselines = visiblePolicies.filter((p) => p.is_baseline);
   const custom = visiblePolicies.filter((p) => !p.is_baseline);
 
@@ -131,12 +153,13 @@ export default function PoliciesPage() {
 
       {!loading && policies.length > 0 && (
         <FilterBar
-          tabs={FILTER_TABS}
+          tabs={FILTER_TABS.map((t) => ({
+            ...t,
+            dot: { name: hasName, date: hasDate, type: hasType }[t.field],
+          }))}
           active={filterField}
-          onTab={(field) => {
-            setFilterField(field);
-            clearFilter();
-          }}
+          onTab={setFilterField}
+          chips={filterChips}
           count={visiblePolicies.length}
           total={policies.length}
           noun="policy"
@@ -174,7 +197,7 @@ export default function PoliciesPage() {
               }}
             />
           ) : (
-            <SearchField value={filterText} onChange={setFilterText} placeholder="Search by policy name…" />
+            <SearchField value={nameText} onChange={setNameText} placeholder="Search by policy name…" />
           )}
         </FilterBar>
       )}
