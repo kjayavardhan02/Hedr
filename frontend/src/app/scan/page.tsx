@@ -18,6 +18,7 @@ import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { Spinner } from "@/components/Spinner";
+import { PolicySelect } from "@/components/PolicySelect";
 
 
 const EXAMPLE_RAW = `HTTP/1.1 200 OK
@@ -201,7 +202,7 @@ export default function ScanPage() {
         )}
       </div>
 
-      <div className="panel">
+      <div className="panel panel-raised">
         <div className="tabs">
           <button
             className={`tab ${policySource === "saved" ? "active" : ""}`}
@@ -226,17 +227,7 @@ export default function ScanPage() {
                 ad-hoc policy for this scan.
               </p>
             ) : (
-              <select
-                value={selectedPolicyId}
-                onChange={(e) => setSelectedPolicyId(e.target.value)}
-              >
-                {policies.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.is_baseline ? " (baseline)" : ""}
-                  </option>
-                ))}
-              </select>
+              <PolicySelect policies={policies} value={selectedPolicyId} onChange={setSelectedPolicyId} />
             )}
           </div>
         ) : (
