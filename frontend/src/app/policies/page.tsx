@@ -12,7 +12,8 @@ import { describeDateRange, inDateRange } from "@/lib/filters";
 import { Highlight } from "@/components/Highlight";
 
 type PolicyFilterField = "name" | "date" | "type";
-type PolicyTypeFilter = "csp" | "headers" | "";
+type PolicyContentFilter = "csp" | "headers" | "";
+type PolicyCategoryFilter = "custom" | "baseline" | "";
 
 const FILTER_TABS: FilterTab<PolicyFilterField>[] = [
   { field: "name", label: "Name", icon: "policy" },
@@ -73,21 +74,29 @@ export default function PoliciesPage() {
   const [nameText, setNameText] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [typeFilter, setTypeFilter] = useState<PolicyTypeFilter>("");
+  const [typeFilter, setTypeFilter] = useState<PolicyContentFilter>("");
+  const [categoryFilter, setCategoryFilter] = useState<PolicyCategoryFilter>("");
   const hasName = nameText.trim() !== "";
   const hasDate = Boolean(dateFrom || dateTo);
   const hasType = typeFilter !== "";
-  const filterActive = hasName || hasDate || hasType;
+  const hasCategory = categoryFilter !== "";
+  const filterActive = hasName || hasDate || hasType || hasCategory;
 
   function clearFilter() {
     setNameText("");
     setDateFrom("");
     setDateTo("");
     setTypeFilter("");
+    setCategoryFilter("");
   }
 
   const filterChips: FilterChip[] = [
     hasName && { key: "name", label: `Name: ${nameText.trim()}`, onRemove: () => setNameText("") },
+    hasCategory && {
+      key: "category",
+      label: categoryFilter === "custom" ? "Custom policies" : "Baselines",
+      onRemove: () => setCategoryFilter(""),
+    },
     hasDate && {
       key: "date",
       label: `Updated: ${describeDateRange(dateFrom, dateTo)}`,
@@ -97,23 +106,28 @@ export default function PoliciesPage() {
       },
     },
     hasType && {
-      key: "type",
+      key: "content",
       label: typeFilter === "csp" ? "Includes CSP" : "Headers only",
       onRemove: () => setTypeFilter(""),
     },
   ].filter((c): c is FilterChip => Boolean(c));
 
-  // The filter applies to both "Your policies" and the built-in baselines.
-  const visiblePolicies = useMemo(() => {
-    if (!filterActive) return policies;
-    const needle = nameText.trim().toLowerCase();
-    return policies.filter(
-      (p) =>
-        (!needle || p.name.toLowerCase().includes(needle)) &&
-        (!typeFilter || (typeFilter === "csp" ? Boolean(p.csp_policy) : !p.csp_policy)) &&
-        inDateRange(p.updated_at, dateFrom, dateTo)
-    );
-  }, [policies, filterActive, nameText, typeFilter, dateFrom, dateTo]);
+  // `skip` leaves one filter out, so its own chips can show how many policies
+  // each choice would give under all the *other* active filters.
+  const matches = (p: Policy, skip?: "category" | "content") =>
+    (!nameText.trim() || p.name.toLowerCase().includes(nameText.trim().toLowerCase())) &&
+    (skip === "category" || !categoryFilter || p.is_baseline === (categoryFilter === "baseline")) &&
+    (skip === "content" || !typeFilter || (typeFilter === "csp" ? Boolean(p.csp_policy) : !p.csp_policy)) &&
+    inDateRange(p.updated_at, dateFrom, dateTo);
+
+  // The filters apply to both "Your policies" and the built-in baselines.
+  const visiblePolicies = policies.filter((p) => matches(p));
+  const categoryCounts = { custom: 0, baseline: 0 };
+  const contentCounts = { csp: 0, headers: 0 };
+  for (const p of policies) {
+    if (matches(p, "category")) categoryCounts[p.is_baseline ? "baseline" : "custom"]++;
+    if (matches(p, "content")) contentCounts[p.csp_policy ? "csp" : "headers"]++;
+  }
 
   const nameQuery = nameText;
   const baselines = visiblePolicies.filter((p) => p.is_baseline);
@@ -155,7 +169,7 @@ export default function PoliciesPage() {
         <FilterBar
           tabs={FILTER_TABS.map((t) => ({
             ...t,
-            dot: { name: hasName, date: hasDate, type: hasType }[t.field],
+            dot: { name: hasName, date: hasDate, type: hasType || hasCategory }[t.field],
           }))}
           active={filterField}
           onTab={setFilterField}
@@ -168,24 +182,52 @@ export default function PoliciesPage() {
           onClear={clearFilter}
         >
           {filterField === "type" ? (
-            <div className="rf-chips" role="group" aria-label="Policy type">
-              {(
-                [
-                  ["csp", "Includes CSP"],
-                  ["headers", "Headers only"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`rf-chip ${typeFilter === value ? "rf-chip-on" : ""}`}
-                  aria-pressed={typeFilter === value}
-                  onClick={() => setTypeFilter((cur) => (cur === value ? "" : value))}
-                >
-                  {label}
-                </button>
-              ))}
-              <span className="rf-hint">Whether the policy evaluates Content-Security-Policy</span>
+            <div className="rf-groups">
+              <div className="rf-group">
+                <span className="rf-group-label">Category</span>
+                <div className="rf-chips" role="group" aria-label="Policy category">
+                  {(
+                    [
+                      ["custom", "Custom policies"],
+                      ["baseline", "Baselines"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`rf-chip ${categoryFilter === value ? "rf-chip-on" : ""}`}
+                      aria-pressed={categoryFilter === value}
+                      disabled={categoryFilter !== value && categoryCounts[value] === 0}
+                      onClick={() => setCategoryFilter((cur) => (cur === value ? "" : value))}
+                    >
+                      {label} <span className="rf-chip-count">{categoryCounts[value]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <span className="rf-group-bar" aria-hidden="true" />
+              <div className="rf-group">
+                <span className="rf-group-label">Content</span>
+                <div className="rf-chips" role="group" aria-label="Policy content">
+                  {(
+                    [
+                      ["csp", "Includes CSP"],
+                      ["headers", "Headers only"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`rf-chip ${typeFilter === value ? "rf-chip-on" : ""}`}
+                      aria-pressed={typeFilter === value}
+                      disabled={typeFilter !== value && contentCounts[value] === 0}
+                      onClick={() => setTypeFilter((cur) => (cur === value ? "" : value))}
+                    >
+                      {label} <span className="rf-chip-count">{contentCounts[value]}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : filterField === "date" ? (
             <DateRangeFilter
@@ -204,11 +246,16 @@ export default function PoliciesPage() {
 
       {!loading && (
         <>
+          {filterActive && visiblePolicies.length === 0 && (
+            <div className="panel fade-in-up">
+              <p className="empty-state">No policies match these filters.</p>
+            </div>
+          )}
+
+          {(!filterActive || custom.length > 0) && (
           <div className="panel fade-in-up">
             <h3 style={{ marginTop: 0, fontSize: 16 }}>Your policies</h3>
-            {custom.length === 0 && filterActive ? (
-              <p className="empty-state">No policies match this filter.</p>
-            ) : custom.length === 0 ? (
+            {custom.length === 0 ? (
               <p className="empty-state">
                 You haven&apos;t created any policies yet. Start from a baseline below,
                 or create one from scratch.
@@ -250,6 +297,7 @@ export default function PoliciesPage() {
               ))
             )}
           </div>
+          )}
 
           {(!filterActive || baselines.length > 0) && (
             <div className="panel fade-in-up" style={{ animationDelay: "60ms" }}>

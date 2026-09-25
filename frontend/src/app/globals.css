@@ -3454,3 +3454,53 @@ a {
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.rf-chip-count {
+  margin-left: 4px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.rf-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Two labelled chip groups on one line, split by a vertical bar. */
+.rf-groups {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+.rf-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.rf-group-label {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.rf-group-bar {
+  align-self: stretch;
+  width: 1px;
+  min-height: 28px;
+  background: var(--panel-border);
+}
+
+@media (max-width: 760px) {
+  .rf-group-bar {
+    display: none;
+  }
+}
