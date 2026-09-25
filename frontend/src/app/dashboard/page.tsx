@@ -430,7 +430,7 @@ export default function DashboardPage() {
                         <span className="mono">{s.target ?? "—"}</span>
                       </span>
                     </td>
-                    <td>{s.policy_name}</td>
+                    <td className="dashboard-table-wrap-cell">{s.policy_name}</td>
                     <td>
                       <span className="report-version-pill">{s.policy_version}</span>
                     </td>

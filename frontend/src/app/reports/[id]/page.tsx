@@ -82,7 +82,7 @@ export default function ReportDetailPage() {
         }}
       >
         <div>
-          <p className="field-hint" style={{ margin: 0 }}>
+          <p className="field-hint" style={{ margin: 0, overflowWrap: "anywhere" }}>
             Scan #{report.scan_number} ·{" "}
             {report.policy_id ? (
               <button

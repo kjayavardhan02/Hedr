@@ -641,6 +641,10 @@ select:focus {
   color: var(--accent);
   cursor: pointer;
   text-decoration: none;
+  /* A button doesn't wrap by default; long names must not widen the page. */
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .link-button:hover {
@@ -764,6 +768,7 @@ select:focus {
   color: var(--text-dim);
   font-size: 13.5px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .modal-body {
@@ -1537,6 +1542,9 @@ select:focus {
 .policy-card-info {
   flex: 1 1 240px;
   min-width: 0;
+  /* Long names/descriptions with no spaces wrap instead of pushing the pill
+     and the action buttons out of the card. */
+  overflow-wrap: anywhere;
 }
 
 .policy-card-actions {
@@ -2478,7 +2486,8 @@ a {
 
 /* Long targets wrap at spaces and only break inside a word when a single
    word is wider than the space available. */
-.latest-scan-info .mono {
+.latest-scan-info .mono,
+.latest-scan-info .field-hint {
   word-break: normal;
   overflow-wrap: anywhere;
 }
@@ -2653,6 +2662,15 @@ a {
   border-bottom: 1px solid var(--panel-border);
   vertical-align: middle;
   white-space: nowrap;
+}
+
+/* Free-text cells (policy names) wrap inside a bounded column instead of
+   stretching the table past its panel. */
+.dashboard-table tbody td.dashboard-table-wrap-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 120px;
+  max-width: 240px;
 }
 
 .dashboard-table tbody tr:last-child td {

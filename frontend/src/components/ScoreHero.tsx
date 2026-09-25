@@ -37,7 +37,7 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
         <div className="score-hero">
           <ScoreRing score={result.score} grade={result.grade} />
           <div>
-            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4 }}>{result.policy_name}</div>
+            <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4, overflowWrap: "anywhere" }}>{result.policy_name}</div>
             <p style={{ margin: "0 0 6px", fontSize: 14 }}>{takeaway(result.grade, failCount)}</p>
             <div className="field-hint">
               {result.target ? (
