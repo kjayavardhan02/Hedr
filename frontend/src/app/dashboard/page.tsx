@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { capitalize, formatDateTime, greeting, timeAgo } from "@/lib/format";
+import { capitalize, formatDateTime, timeAgo } from "@/lib/format";
 import type { DashboardSummary, Policy } from "@/lib/types";
 import { ScoreRing } from "@/components/ScoreRing";
 import { DashboardSkeleton } from "@/components/Skeleton";
@@ -165,9 +165,8 @@ export default function DashboardPage() {
     <div className="container">
       <div className="panel fade-in-up dashboard-header">
         <div>
-          <h1 style={{ fontSize: 22, margin: "0 0 4px" }}>
-            {greeting()}
-            {user?.first_name ? `, ${capitalize(user.first_name)}` : ""} 👋
+          <h1 style={{ fontSize: 22, margin: "0 0 4px", overflowWrap: "anywhere" }}>
+            Welcome back{user?.first_name ? `, ${capitalize(user.first_name)}` : ""} 👋
           </h1>
           <p className="field-hint" style={{ margin: 0 }}>
             Analyze your application&apos;s security configuration.

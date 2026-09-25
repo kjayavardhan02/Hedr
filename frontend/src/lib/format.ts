@@ -39,14 +39,6 @@ export function formatDateTime(iso: string): string {
   });
 }
 
-/** Time-of-day greeting for the Dashboard welcome header. */
-export function greeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 /** Rounds a score difference to one decimal place (dropping a trailing
  * ".0"), which also removes float noise like 45.400000000000006 from a
  * subtraction of two stored scores. */
