@@ -115,6 +115,20 @@ export default function EditPolicyPage() {
         </p>
       )}
 
+      {!readOnly && (
+        <p className="field-hint" style={{ marginBottom: 20 }}>
+          Need a variant of this policy?{" "}
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{ marginLeft: 4 }}
+            onClick={() => router.push(`/policies/new?template=${policy.id}`)}
+          >
+            Clone
+          </button>{" "}
+          Copies the saved version, not unsaved edits.
+        </p>
+      )}
+
       {error && <div className="error-box">{error}</div>}
 
       <div className="panel fade-in-up">

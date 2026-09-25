@@ -117,6 +117,9 @@ export default function PoliciesPage() {
                     <Link className="btn btn-secondary btn-sm" href={`/policies/${p.id}`}>
                       Edit
                     </Link>
+                    <Link className="btn btn-secondary btn-sm" href={`/policies/new?template=${p.id}`}>
+                      Clone
+                    </Link>
                     <button
                       className={`btn btn-sm ${confirmingId === p.id ? "btn-danger-solid" : "btn-danger"}`}
                       onClick={() => requestDelete(p.id)}

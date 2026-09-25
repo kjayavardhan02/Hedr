@@ -1,10 +1,10 @@
 "use client";
 
-import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
+import { duplicateHeaderMessage, duplicateHeaderNames, uniqueCopyName } from "@/lib/policyValidation";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { CSPPolicy, PolicyHeader } from "@/lib/types";
+import type { CSPPolicy, Policy, PolicyHeader } from "@/lib/types";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
 import { CSPPolicyBuilder } from "@/components/CSPPolicyBuilder";
 import { Spinner } from "@/components/Spinner";
@@ -30,10 +30,13 @@ function NewPolicyForm() {
 
   useEffect(() => {
     if (!templateId) return;
-    api
-      .getPolicy(templateId)
-      .then((p) => {
-        setName(`${p.name} (copy)`);
+    Promise.all([
+      api.getPolicy(templateId),
+      // Only used to pick a free "(copy N)" name, so a failure here is harmless.
+      api.listPolicies().catch(() => [] as Policy[]),
+    ])
+      .then(([p, existing]) => {
+        setName(uniqueCopyName(p.name, existing.map((e) => e.name)));
         setDescription(p.description);
         setHeaders(p.headers);
         setCspPolicy(p.csp_policy);

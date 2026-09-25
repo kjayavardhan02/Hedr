@@ -524,6 +524,7 @@ export default function DashboardPage() {
                   <th>Rules</th>
                   <th>Created</th>
                   <th>Updated</th>
+                  <th aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody>
@@ -550,6 +551,18 @@ export default function DashboardPage() {
                     </td>
                     <td className="field-hint">{formatDateTime(p.created_at)}</td>
                     <td className="field-hint">{timeAgo(p.updated_at)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/policies/new?template=${p.id}`);
+                        }}
+                      >
+                        Clone
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
