@@ -3448,3 +3448,9 @@ a {
   color: var(--text);
   background: rgba(255, 255, 255, 0.18);
 }
+
+/* A grade with no reports under the other active filters. */
+.rf-grade:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

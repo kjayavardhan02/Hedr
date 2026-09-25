@@ -211,23 +211,28 @@ export default function ReportsPage() {
   const hasDate = Boolean(dateFrom || dateTo);
   const hasGrade = grades.length > 0;
   const filterActive = hasTarget || hasPolicy || hasDate || hasGrade;
-  const gradeCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const r of reports) counts[r.grade] = (counts[r.grade] ?? 0) + 1;
-    return counts;
-  }, [reports]);
-  const visibleReports = useMemo(() => {
+  // Reports matching every filter except Grade. The grade chips count from this,
+  // so a chip's number is exactly what clicking it will show.
+  const matchesOtherFilters = useMemo(() => {
     const target = deferredTarget.trim().toLowerCase();
     const policy = deferredPolicy.trim().toLowerCase();
-    if (!target && !policy && !dateFrom && !dateTo && grades.length === 0) return reports;
+    if (!target && !policy && !dateFrom && !dateTo) return reports;
     return reports.filter(
       (r) =>
         (!target || (r.target ?? "").toLowerCase().includes(target)) &&
         (!policy || r.policy_name.toLowerCase().includes(policy)) &&
-        (grades.length === 0 || grades.includes(r.grade)) &&
         inDateRange(r.scanned_at, dateFrom, dateTo)
     );
-  }, [reports, deferredTarget, deferredPolicy, dateFrom, dateTo, grades]);
+  }, [reports, deferredTarget, deferredPolicy, dateFrom, dateTo]);
+  const gradeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of matchesOtherFilters) counts[r.grade] = (counts[r.grade] ?? 0) + 1;
+    return counts;
+  }, [matchesOtherFilters]);
+  const visibleReports = useMemo(
+    () => (grades.length === 0 ? matchesOtherFilters : matchesOtherFilters.filter((r) => grades.includes(r.grade))),
+    [matchesOtherFilters, grades]
+  );
 
   const [exporting, setExporting] = useState(false);
 
@@ -392,6 +397,7 @@ export default function ReportsPage() {
                     type="button"
                     className={`rf-grade rf-grade-${gradeTone(g)} ${on ? "rf-grade-on" : ""}`}
                     aria-pressed={on}
+                    disabled={!on && (gradeCounts[g] ?? 0) === 0}
                     onClick={() =>
                       setGrades((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]))
                     }
