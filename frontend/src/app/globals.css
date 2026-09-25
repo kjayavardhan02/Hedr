@@ -93,7 +93,8 @@ select:focus {
 .ambient-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(100px);
+  /* No filter: blur() here - a huge animated blur forces the GPU to re-blur every
+     frame and made typing feel laggy. The gradient already fades to transparent. */
   opacity: 0.14;
   background: radial-gradient(circle, var(--accent), transparent 70%);
   animation: driftBlob 24s ease-in-out infinite alternate;
@@ -2796,4 +2797,33 @@ a {
   .findings-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.policy-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 76px;
+}
+
+.report-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+.report-filter select,
+.report-filter input[type="text"] {
+  width: auto;
+  min-width: 160px;
+}
+.report-filter input[type="text"] {
+  flex: 1 1 220px;
+}
+.report-filter input[type="date"] {
+  width: auto;
+  margin-left: 6px;
+}
+.report-filter-grades {
+  display: flex;
+  gap: 6px;
 }

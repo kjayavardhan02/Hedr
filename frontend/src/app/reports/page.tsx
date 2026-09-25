@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import type { Policy, ScanReportSummary } from "@/lib/types";
@@ -15,11 +15,11 @@ function gradeBadgeClass(grade: string): string {
   return "badge-FAIL";
 }
 
+// One shared formatter: building an Intl formatter per row on every render is slow.
+const DATE_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
+
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  return DATE_FORMAT.format(new Date(iso));
 }
 
 // Mirrors the backend's default label for a raw scan with no target name
@@ -84,6 +84,89 @@ function DeltaIndicator({ delta }: { delta: number | undefined }) {
   );
 }
 
+type FilterField = "policy" | "target" | "date" | "grade";
+const GRADES = ["A", "B", "C", "D", "F"];
+const PAGE_SIZE = 30;
+
+/** yyyy-mm-dd of a timestamp in the viewer's local timezone, to match <input type="date">. */
+function localDateKey(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+type ReportRowProps = {
+  report: ScanReportSummary;
+  delta: number | undefined;
+  confirming: boolean;
+  deleting: boolean;
+  onOpenPolicy: (policyId: string) => void;
+  onDelete: (id: string) => void;
+};
+
+// Memoised so typing in the filter box only re-renders rows whose props changed.
+const ReportRow = memo(function ReportRow({
+  report,
+  delta,
+  confirming,
+  deleting,
+  onOpenPolicy,
+  onDelete,
+}: ReportRowProps) {
+  return (
+    <div className="policy-card">
+      <div className="policy-card-info">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="report-scan-badge">{report.scan_number}</span>
+          <span style={{ fontWeight: 600 }} className="mono">
+            {report.target ?? "—"}
+          </span>
+        </div>
+        <div className="policy-card-meta">
+          {report.policy_id ? (
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => onOpenPolicy(report.policy_id as string)}
+            >
+              {report.policy_name}
+            </button>
+          ) : (
+            report.policy_name
+          )}{" "}
+          <span className="report-version-pill">{report.policy_version}</span>
+          {" · "}
+          {formatDate(report.scanned_at)}
+          {" · "}
+          {report.headers_evaluated} header{report.headers_evaluated === 1 ? "" : "s"} evaluated
+        </div>
+      </div>
+      <div className="policy-card-actions report-actions">
+        <span className={`badge ${gradeBadgeClass(report.grade)}`}>
+          {report.grade} · {report.score}
+        </span>
+        <DeltaIndicator delta={delta} />
+        <div className="report-actions-buttons">
+          <Link className="btn btn-secondary btn-sm" href={`/reports/${report.id}`}>
+            View
+          </Link>
+          <button
+            className={`btn btn-sm ${confirming ? "btn-danger-solid" : "btn-danger"}`}
+            onClick={() => onDelete(report.id)}
+            disabled={deleting}
+          >
+            {deleting
+              ? "Deleting…"
+              : confirming
+                ? "Confirm?"
+                : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export default function ReportsPage() {
   const toast = useToast();
   const [reports, setReports] = useState<ScanReportSummary[]>([]);
@@ -93,7 +176,46 @@ export default function ReportsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewPolicy, setPreviewPolicy] = useState<Policy | null>(null);
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Deltas are computed from the full history so filtering never changes them.
   const scoreDeltas = useMemo(() => computeScoreDeltas(reports), [reports]);
+  const [filterField, setFilterField] = useState<FilterField>("target");
+  const [filterText, setFilterText] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [grades, setGrades] = useState<string[]>([]);
+  // The input stays instant; the (larger) list re-filters at lower priority.
+  const deferredText = useDeferredValue(filterText);
+  const filterActive =
+    filterField === "date"
+      ? Boolean(dateFrom || dateTo)
+      : filterField === "grade"
+        ? grades.length > 0
+        : filterText.trim() !== "";
+  const visibleReports = useMemo(() => {
+    if (!filterActive) return reports;
+    const needle = deferredText.trim().toLowerCase();
+    return reports.filter((r) => {
+      if (filterField === "policy") return r.policy_name.toLowerCase().includes(needle);
+      if (filterField === "target") return (r.target ?? "").toLowerCase().includes(needle);
+      if (filterField === "grade") return grades.includes(r.grade);
+      const day = localDateKey(r.scanned_at);
+      return (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo);
+    });
+  }, [reports, filterActive, filterField, deferredText, dateFrom, dateTo, grades]);
+
+  const [shownCount, setShownCount] = useState(PAGE_SIZE);
+  // Any filter change starts again from the first page.
+  useEffect(() => {
+    setShownCount(PAGE_SIZE);
+  }, [filterField, deferredText, dateFrom, dateTo, grades]);
+  const pageReports = useMemo(() => visibleReports.slice(0, shownCount), [visibleReports, shownCount]);
+
+  function clearFilter() {
+    setFilterText("");
+    setDateFrom("");
+    setDateTo("");
+    setGrades([]);
+  }
 
   function load() {
     setLoading(true);
@@ -106,19 +228,27 @@ export default function ReportsPage() {
 
   useEffect(load, []);
 
-  function requestDelete(id: string) {
-    if (confirmingId === id) {
-      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+  const confirmingRef = useRef<string | null>(null);
+  const performDeleteRef = useRef<(id: string) => Promise<void>>(async () => {});
+
+  // Stable identity (reads state via refs) so memoised rows don't re-render on every keystroke.
+  const requestDelete = useCallback((id: string) => {
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    if (confirmingRef.current === id) {
+      confirmingRef.current = null;
       setConfirmingId(null);
-      void performDelete(id);
+      void performDeleteRef.current(id);
       return;
     }
+    confirmingRef.current = id;
     setConfirmingId(id);
-    if (confirmTimer.current) clearTimeout(confirmTimer.current);
-    confirmTimer.current = setTimeout(() => setConfirmingId(null), 3000);
-  }
+    confirmTimer.current = setTimeout(() => {
+      confirmingRef.current = null;
+      setConfirmingId(null);
+    }, 3000);
+  }, []);
 
-  async function openPolicy(policyId: string) {
+  const openPolicy = useCallback(async (policyId: string) => {
     try {
       const policy = await api.getPolicy(policyId);
       setPreviewPolicy(policy);
@@ -132,7 +262,7 @@ export default function ReportsPage() {
         toast.show(e instanceof ApiError ? e.message : "Couldn't open this policy.", "error");
       }
     }
-  }
+  }, [toast]);
 
   async function performDelete(id: string) {
     setDeletingId(id);
@@ -146,6 +276,7 @@ export default function ReportsPage() {
       setDeletingId(null);
     }
   }
+  performDeleteRef.current = performDelete;
 
   return (
     <div className="container">
@@ -165,6 +296,66 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {!loading && reports.length > 0 && (
+        <div className="panel report-filter fade-in-up">
+          <select
+            aria-label="Filter by"
+            value={filterField}
+            onChange={(e) => {
+              setFilterField(e.target.value as FilterField);
+              clearFilter();
+            }}
+          >
+            <option value="target">Target name</option>
+            <option value="policy">Policy name</option>
+            <option value="date">Date</option>
+            <option value="grade">Grade</option>
+          </select>
+          {filterField === "grade" ? (
+            <div className="report-filter-grades" role="group" aria-label="Grades">
+              {GRADES.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`btn btn-sm ${grades.includes(g) ? "" : "btn-secondary"}`}
+                  aria-pressed={grades.includes(g)}
+                  onClick={() => setGrades((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]))}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          ) : filterField === "date" ? (
+            <>
+              <label className="field-hint">
+                From <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} />
+              </label>
+              <label className="field-hint">
+                To <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
+              </label>
+            </>
+          ) : (
+            <input
+              type="text"
+              aria-label="Filter text"
+              placeholder={filterField === "policy" ? "Search policy name…" : "Search target name…"}
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+            />
+          )}
+          {filterActive && (
+            <>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilter}>
+                Clear
+              </button>
+              <span className="field-hint">
+                Showing {visibleReports.length} of {reports.length}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {!loading && (
         <div className="panel fade-in-up">
           {reports.length === 0 ? (
@@ -172,59 +363,31 @@ export default function ReportsPage() {
               No scans saved yet. <Link href="/scan">Run a scan</Link> and it will show up
               here.
             </p>
+          ) : visibleReports.length === 0 ? (
+            <p className="empty-state">No reports match this filter.</p>
           ) : (
-            reports.map((r) => (
-              <div className="policy-card" key={r.id}>
-                <div className="policy-card-info">
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span className="report-scan-badge">{r.scan_number}</span>
-                    <span style={{ fontWeight: 600 }} className="mono">
-                      {r.target ?? "—"}
-                    </span>
-                  </div>
-                  <div className="policy-card-meta">
-                    {r.policy_id ? (
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => void openPolicy(r.policy_id as string)}
-                      >
-                        {r.policy_name}
-                      </button>
-                    ) : (
-                      r.policy_name
-                    )}{" "}
-                    <span className="report-version-pill">{r.policy_version}</span>
-                    {" · "}
-                    {formatDate(r.scanned_at)}
-                    {" · "}
-                    {r.headers_evaluated} header{r.headers_evaluated === 1 ? "" : "s"} evaluated
-                  </div>
-                </div>
-                <div className="policy-card-actions report-actions">
-                  <span className={`badge ${gradeBadgeClass(r.grade)}`}>
-                    {r.grade} · {r.score}
-                  </span>
-                  <DeltaIndicator delta={scoreDeltas.get(r.id)} />
-                  <div className="report-actions-buttons">
-                    <Link className="btn btn-secondary btn-sm" href={`/reports/${r.id}`}>
-                      View
-                    </Link>
-                    <button
-                      className={`btn btn-sm ${confirmingId === r.id ? "btn-danger-solid" : "btn-danger"}`}
-                      onClick={() => requestDelete(r.id)}
-                      disabled={deletingId === r.id}
-                    >
-                      {deletingId === r.id
-                        ? "Deleting…"
-                        : confirmingId === r.id
-                          ? "Confirm?"
-                          : "Delete"}
-                    </button>
-                  </div>
-                </div>
-              </div>
+            pageReports.map((r) => (
+              <ReportRow
+                key={r.id}
+                report={r}
+                delta={scoreDeltas.get(r.id)}
+                confirming={confirmingId === r.id}
+                deleting={deletingId === r.id}
+                onOpenPolicy={openPolicy}
+                onDelete={requestDelete}
+              />
             ))
+          )}
+          {visibleReports.length > shownCount && (
+            <div style={{ textAlign: "center", marginTop: 14 }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShownCount((n) => n + PAGE_SIZE)}
+              >
+                Show more ({visibleReports.length - shownCount} remaining)
+              </button>
+            </div>
           )}
         </div>
       )}
