@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Policy } from "@/lib/types";
+import { useMenuPlacement } from "@/lib/useMenuPlacement";
 import { Highlight } from "./Highlight";
 
 function PolicyBadge({ policy }: { policy: Policy }) {
@@ -16,10 +17,6 @@ function ruleSummary(policy: Policy): string {
   const n = policy.headers.length;
   return `${n} header rule${n === 1 ? "" : "s"}${policy.csp_policy ? " · CSP" : ""}`;
 }
-
-const MENU_MAX_HEIGHT = 400;
-const MENU_MIN_HEIGHT = 220;
-const VIEWPORT_GAP = 16;
 
 /** Styled, searchable replacement for a native <select> of policies: grouped
  * options with a description, rule summary and a Custom/Baseline badge. Opens
@@ -36,7 +33,6 @@ export function PolicySelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [placement, setPlacement] = useState<{ up: boolean; maxHeight: number }>({ up: false, maxHeight: MENU_MAX_HEIGHT });
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -56,27 +52,7 @@ export function PolicySelect({
   }, [ordered, query]);
   const selected = policies.find((p) => p.id === value) ?? null;
 
-  // Size and flip the menu to the room actually available around the trigger.
-  const place = useCallback(() => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const below = window.innerHeight - rect.bottom - VIEWPORT_GAP;
-    const above = rect.top - VIEWPORT_GAP;
-    const up = below < MENU_MIN_HEIGHT && above > below;
-    const room = up ? above : below;
-    setPlacement({ up, maxHeight: Math.max(160, Math.min(MENU_MAX_HEIGHT, room)) });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [open, place]);
+  const placement = useMenuPlacement(open, triggerRef);
 
   useEffect(() => {
     if (!open) return;
