@@ -3316,7 +3316,10 @@ a {
    orange accent and from the pass/fail/warn/baseline status colours. */
 .ps-mark,
 .search-mark {
+  /* The padding is cancelled by the equal negative margin, so highlighting a
+     match never moves the text - only the coloured box grows around it. */
   padding: 1px 4px;
+  margin: 0 -4px;
   color: #a78bfa;
   background: rgba(167, 139, 250, 0.16);
   border-radius: 4px;
