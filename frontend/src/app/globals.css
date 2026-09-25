@@ -3504,3 +3504,31 @@ a {
     display: none;
   }
 }
+
+/* Header-name dropdown: a slimmer trigger that matches the other inputs. */
+.ps-trigger-compact {
+  padding: 8px 12px;
+  min-height: 42px;
+}
+
+/* The header-name column is narrow; let the menu be wider than its trigger. */
+.ps-menu-wide {
+  right: auto;
+  width: max(100%, 380px);
+  max-width: min(460px, calc(100vw - 32px));
+}
+
+.ps-trigger-compact .ps-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ps-footnote {
+  flex: none;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.02);
+}

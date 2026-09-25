@@ -1,29 +1,12 @@
 "use client";
 
 import { CharCount } from "@/components/CharCount";
-import { HEADER_EXPECTED_VALUE_MAX_LENGTH, HEADER_NAME_MAX_LENGTH } from "@/lib/limits";
+import { HEADER_EXPECTED_VALUE_MAX_LENGTH } from "@/lib/limits";
 import type { PolicyHeader } from "@/lib/types";
 import { headerKind } from "@/lib/headerValueSyntax";
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
+import { HeaderNameSelect } from "./HeaderNameSelect";
 import { HeaderValueControls } from "./HeaderValueControls";
-
-// Content-Security-Policy is deliberately not in this list - it's
-// configured through its own structured builder (CSPPolicyBuilder), never
-// as a generic header expected-value string.
-const COMMON_HEADERS = [
-  "Strict-Transport-Security",
-  "X-Content-Type-Options",
-  "X-Frame-Options",
-  "Referrer-Policy",
-  "Permissions-Policy",
-  "Cross-Origin-Opener-Policy",
-  "Cross-Origin-Resource-Policy",
-  "Cross-Origin-Embedder-Policy",
-  "X-XSS-Protection",
-  "Cache-Control",
-  "Access-Control-Allow-Origin",
-  "Access-Control-Allow-Credentials",
-];
 
 const ACAC_HEADER = "access-control-allow-credentials";
 const ACAO_HEADER = "access-control-allow-origin";
@@ -66,12 +49,6 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
 
   return (
     <div>
-      <datalist id="common-headers">
-        {COMMON_HEADERS.map((h) => (
-          <option key={h} value={h} />
-        ))}
-      </datalist>
-
       {headers.length === 0 && (
         <p className="field-hint" style={{ marginBottom: 10 }}>
           No headers yet. Click &quot;Add Header&quot; to define the first rule.
@@ -85,12 +62,10 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
         >
           <div className="field">
             <label>Header name</label>
-            <input
-              list="common-headers"
-              placeholder="e.g. Strict-Transport-Security"
+            <HeaderNameSelect
               value={h.header_name}
-              maxLength={HEADER_NAME_MAX_LENGTH}
-              onChange={(e) => updateRow(i, { header_name: e.target.value })}
+              onChange={(name) => updateRow(i, { header_name: name })}
+              takenNames={headers.filter((_, j) => j !== i).map((other) => other.header_name)}
             />
           </div>
           <div className="field" style={{ flex: 2 }}>

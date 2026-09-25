@@ -93,7 +93,7 @@ function NewPolicyForm() {
       {error && <div className="error-box">{error}</div>}
 
       {!loadingTemplate && (
-        <div className="panel fade-in-up">
+        <div className="panel panel-raised fade-in-up">
           <div className="field">
             <label>Policy name</label>
             <input
