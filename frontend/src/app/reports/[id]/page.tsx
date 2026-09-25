@@ -66,6 +66,8 @@ export default function ReportDetailPage() {
     );
   }
 
+  const scannedAt = new Date(report.scanned_at);
+
   return (
     <div className="container">
       <BackLink href="/reports" label="Back to Reports" />
@@ -79,22 +81,28 @@ export default function ReportDetailPage() {
           marginBottom: 12,
         }}
       >
-        <p className="field-hint" style={{ margin: 0 }}>
-          Scan #{report.scan_number} ·{" "}
-          {report.policy_id ? (
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => void openPolicy(report.policy_id as string)}
-            >
-              {report.policy_name}
-            </button>
-          ) : (
-            report.policy_name
-          )}{" "}
-          ({report.policy_version}) · {report.headers_evaluated} header
-          {report.headers_evaluated === 1 ? "" : "s"} evaluated
-        </p>
+        <div>
+          <p className="field-hint" style={{ margin: 0 }}>
+            Scan #{report.scan_number} ·{" "}
+            {report.policy_id ? (
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => void openPolicy(report.policy_id as string)}
+              >
+                {report.policy_name}
+              </button>
+            ) : (
+              report.policy_name
+            )}{" "}
+            ({report.policy_version}) · {report.headers_evaluated} header
+            {report.headers_evaluated === 1 ? "" : "s"} evaluated
+          </p>
+          <p className="field-hint" style={{ margin: "4px 0 0" }}>
+            <strong>Date:</strong> {scannedAt.toLocaleDateString(undefined, { dateStyle: "medium" })} ·{" "}
+            <strong>Time:</strong> {scannedAt.toLocaleTimeString(undefined, { timeStyle: "medium" })}
+          </p>
+        </div>
         <ExportMenu data={report} />
       </div>
       <div className="report-top-row">
