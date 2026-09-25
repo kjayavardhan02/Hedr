@@ -1,9 +1,9 @@
 import { jsPDF } from "jspdf";
 import autoTable, { type CellHookData } from "jspdf-autotable";
-import type { CSPFinding, HeaderFinding } from "./types";
+import type { CSPDirectiveRule, CSPFinding, CSPPolicy, HeaderFinding, Policy, PolicyHeader } from "./types";
 
-// Accepted by both a live ScanResult and a saved ScanReport - scan_number
-// and policy_version only exist on saved reports, so they're optional.
+// Accepted by both a live ScanResult and a saved ScanReport - scan_number,
+// policy_id and policy_version only exist on saved reports, so they're optional.
 export interface PdfReportData {
   policy_name: string;
   target: string | null;
@@ -14,27 +14,51 @@ export interface PdfReportData {
   csp_finding: CSPFinding | null;
   scanned_at: string;
   scan_number?: number;
+  policy_id?: string | null;
   policy_version?: string;
 }
 
+export interface PdfOptions {
+  /** The saved policy the scan used, when it is still at the scanned version. */
+  policy?: Policy | null;
+  /** Shown under the policy section, e.g. when the saved policy has since changed. */
+  policyNote?: string | null;
+}
+
+type RGB = [number, number, number];
+
+const PAGE_W = 595.28;
 const MARGIN_X = 40;
-const PAGE_BOTTOM = 790;
-const ACCENT_RGB: [number, number, number] = [255, 122, 26];
-const STATUS_COLOR: Record<string, [number, number, number]> = {
-  PASS: [30, 140, 60],
-  FAIL: [200, 50, 50],
-  WARNING: [180, 130, 20],
-  INFO: [90, 90, 90],
-};
+const CONTENT_W = PAGE_W - MARGIN_X * 2;
+const CONTENT_TOP = 84; // below the running header
+const PAGE_BOTTOM = 782; // above the footer
+
+const ACCENT: RGB = [255, 122, 26];
+const ACCENT_SOFT: RGB = [255, 240, 229];
+const INK: RGB = [28, 28, 32];
+const MUTED: RGB = [110, 110, 118];
+const LINE: RGB = [224, 224, 228];
+const CARD: RGB = [248, 248, 250];
+const PASS: RGB = [30, 140, 60];
+const FAIL: RGB = [200, 50, 50];
+const WARN: RGB = [180, 130, 20];
+
+const STATUS_COLOR: Record<string, RGB> = { PASS, FAIL, WARNING: WARN, INFO: [90, 90, 90] };
+
+function gradeColor(grade: string): RGB {
+  if (grade === "A" || grade === "B") return PASS;
+  if (grade === "C" || grade === "D") return WARN;
+  return FAIL;
+}
 
 function finalY(doc: jsPDF): number {
-  return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 60;
+  return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? CONTENT_TOP;
 }
 
 function ensureSpace(doc: jsPDF, y: number, needed = 60): number {
   if (y + needed > PAGE_BOTTOM) {
     doc.addPage();
-    return 50;
+    return CONTENT_TOP;
   }
   return y;
 }
@@ -43,55 +67,462 @@ function statusColorHook(statusColumnIndex: number) {
   return (hook: CellHookData) => {
     if (hook.section === "body" && hook.column.index === statusColumnIndex) {
       const color = STATUS_COLOR[String(hook.cell.raw)];
-      if (color) hook.cell.styles.textColor = color;
+      if (color) {
+        hook.cell.styles.textColor = color;
+        hook.cell.styles.fontStyle = "bold";
+      }
     }
   };
 }
 
-export function downloadReportPdf(data: PdfReportData): void {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  let y = 50;
+const TABLE_STYLE = {
+  margin: { left: MARGIN_X, right: MARGIN_X, top: CONTENT_TOP },
+  styles: { fontSize: 8, cellPadding: 5, overflow: "linebreak" as const, textColor: INK, lineColor: LINE, lineWidth: 0.4 },
+  headStyles: { fillColor: ACCENT, textColor: 255, fontStyle: "bold" as const, lineWidth: 0 },
+  alternateRowStyles: { fillColor: CARD },
+};
 
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(0);
-  doc.text("Hedr Security Scan Report", MARGIN_X, y);
-  y += 26;
+/** The Hedr shield mark, drawn as vector shapes (no image asset needed). */
+function drawLogo(doc: jsPDF, x: number, y: number, size: number): void {
+  const k = size / 24;
+  doc.setFillColor(...ACCENT_SOFT);
+  doc.setDrawColor(...ACCENT);
+  doc.setLineWidth(1.3);
+  doc.setLineJoin("round");
+  doc.lines(
+    [
+      [-7.5, 2.8],
+      [0, 5.4],
+      [0, 5, 3.2, 8.8, 7.5, 10.8],
+      [4.3, -2, 7.5, -5.8, 7.5, -10.8],
+      [0, -5.4],
+    ],
+    x + 12 * k,
+    y + 2.5 * k,
+    [k, k],
+    "FD",
+    true
+  );
+  doc.setLineWidth(1.6);
+  doc.setLineCap("round");
+  doc.lines([[2.2, 2.2], [4.4, -4.6]], x + 8.7 * k, y + 12.1 * k, [k, k], "S", false);
+}
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(90);
-  const metaLines = [
-    data.scan_number ? `Scan #${data.scan_number}` : null,
-    `Policy: ${data.policy_name}${data.policy_version ? ` (${data.policy_version})` : ""}`,
-    `Target: ${data.target ?? "Pasted response"}`,
-    data.fetched_status_code != null ? `HTTP status: ${data.fetched_status_code}` : null,
-    `Scanned: ${new Date(data.scanned_at).toLocaleString()}`,
-  ].filter((line): line is string => Boolean(line));
-  for (const line of metaLines) {
-    doc.text(line, MARGIN_X, y);
-    y += 14;
+/** Running header (every page) and footer with page numbers. */
+function decoratePages(doc: jsPDF): void {
+  const pages = doc.getNumberOfPages();
+  const generated = new Date().toLocaleString();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+
+    drawLogo(doc, MARGIN_X, 22, 28);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.setTextColor(...INK);
+    doc.text("Hedr", MARGIN_X + 36, 42);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text("HTTP Security Header Policy Analyzer", MARGIN_X + 36, 53);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...ACCENT);
+    doc.text("SECURITY SCAN REPORT", PAGE_W - MARGIN_X, 40, { align: "right" });
+    doc.setDrawColor(...ACCENT);
+    doc.setLineWidth(1.5);
+    doc.line(MARGIN_X, 66, PAGE_W - MARGIN_X, 66);
+
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.5);
+    doc.line(MARGIN_X, 806, PAGE_W - MARGIN_X, 806);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(`Generated by Hedr on ${generated}`, MARGIN_X, 820);
+    doc.text(`Page ${i} of ${pages}`, PAGE_W - MARGIN_X, 820, { align: "right" });
   }
-  y += 10;
+}
+
+/** Flip to true to start every section on its own page. */
+const FORCE_NEW_PAGE_PER_SECTION = false;
+const SECTION_GAP = 30; // space above a section that continues on the same page
+
+interface SectionEntry {
+  title: string;
+  page: number;
+}
+
+/**
+ * Starts a section: on a fresh page when asked (or when too little room is
+ * left for it to read well), otherwise after a gap and a divider line.
+ * Records where it landed so the contents page can link to it.
+ */
+function beginSection(
+  doc: jsPDF,
+  y: number,
+  title: string,
+  subtitle: string | undefined,
+  sections: SectionEntry[],
+  opts: { newPage?: boolean; minSpace?: number } = {}
+): number {
+  const needsRoom = y + (opts.minSpace ?? 120) > PAGE_BOTTOM;
+  if (y > CONTENT_TOP && (opts.newPage || FORCE_NEW_PAGE_PER_SECTION || needsRoom)) {
+    doc.addPage();
+    y = CONTENT_TOP;
+  } else if (y > CONTENT_TOP) {
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.6);
+    doc.line(MARGIN_X, y + SECTION_GAP / 2 - 4, PAGE_W - MARGIN_X, y + SECTION_GAP / 2 - 4);
+    y += SECTION_GAP;
+  }
+  y += 12; // title baseline
+  sections.push({ title, page: doc.getNumberOfPages() });
+
+  doc.setFillColor(...ACCENT);
+  doc.roundedRect(MARGIN_X, y - 11, 3.5, 15, 1.5, 1.5, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...INK);
+  doc.text(title, MARGIN_X + 11, y);
+  y += 6;
+  if (subtitle) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    const lines = doc.splitTextToSize(subtitle, CONTENT_W - 11) as string[];
+    for (const line of lines) {
+      y += 11;
+      doc.text(line, MARGIN_X + 11, y);
+    }
+    y += 4;
+  }
+  return y + 10;
+}
+
+/** Contents list with dot leaders and clickable page links, drawn on page 1. */
+function drawIndex(doc: jsPDF, y: number, sections: SectionEntry[]): void {
+  doc.setPage(1);
+  doc.setFillColor(...ACCENT);
+  doc.roundedRect(MARGIN_X, y - 11, 3.5, 15, 1.5, 1.5, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(...INK);
+  doc.text("Contents", MARGIN_X + 11, y);
+  y += 24;
+
+  sections.forEach((section, i) => {
+    const numberText = `${i + 1}`;
+    const pageText = String(section.page);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...ACCENT);
+    doc.text(numberText, MARGIN_X + 11, y);
+    doc.setTextColor(...INK);
+    doc.text(section.title, MARGIN_X + 30, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...MUTED);
+    doc.text(pageText, PAGE_W - MARGIN_X, y, { align: "right" });
+    // dot leader between the title and the page number
+    const start = MARGIN_X + 30 + doc.getTextWidth(section.title) + 6;
+    const end = PAGE_W - MARGIN_X - doc.getTextWidth(pageText) - 6;
+    const dotW = doc.getTextWidth(". ");
+    if (end > start) doc.text(". ".repeat(Math.floor((end - start) / dotW)), start, y);
+    doc.link(MARGIN_X, y - 11, CONTENT_W, 16, { pageNumber: section.page });
+    y += 22;
+  });
+}
+
+function statTile(doc: jsPDF, x: number, y: number, w: number, label: string, value: string, color: RGB): void {
+  doc.setFillColor(...CARD);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(x, y, w, 46, 6, 6, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.setTextColor(...color);
+  doc.text(value, x + w / 2, y + 22, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...MUTED);
+  doc.text(label.toUpperCase(), x + w / 2, y + 36, { align: "center" });
+}
+
+function summaryCard(doc: jsPDF, y: number, data: PdfReportData): number {
+  const cardH = 128;
+  doc.setFillColor(...CARD);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(MARGIN_X, y, CONTENT_W, cardH, 8, 8, "FD");
+  doc.setFillColor(...ACCENT);
+  doc.roundedRect(MARGIN_X, y, 5, cardH, 2.5, 2.5, "F");
+
+  // Grade badge
+  const color = gradeColor(data.grade);
+  const cx = MARGIN_X + 52;
+  const cy = y + 50;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...color);
+  doc.setLineWidth(3.5);
+  doc.circle(cx, cy, 30, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(30);
+  doc.setTextColor(...color);
+  doc.text(data.grade, cx, cy + 10.5, { align: "center" });
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  doc.text(`${data.score} / 100`, cx, cy + 46, { align: "center" });
+
+  // Target + meta
+  const textX = MARGIN_X + 108;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text("TARGET", textX, y + 24);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
+  const targetLines = (doc.splitTextToSize(data.target ?? "Pasted response", CONTENT_W - 130) as string[]).slice(0, 2);
+  doc.text(targetLines, textX, y + 39);
+  const metaY = y + 39 + targetLines.length * 14 + 6;
+
+  const meta: [string, string][] = [
+    ["Scanned", new Date(data.scanned_at).toLocaleString()],
+    ["Policy", `${data.policy_name}${data.policy_version ? ` (${data.policy_version})` : ""}`],
+  ];
+  if (data.scan_number) meta.unshift(["Scan", `#${data.scan_number}`]);
+  if (data.fetched_status_code != null) meta.push(["HTTP status", String(data.fetched_status_code)]);
+  let my = metaY;
+  doc.setFontSize(8.5);
+  for (const [label, value] of meta) {
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...MUTED);
+    doc.text(label, textX, my);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...INK);
+    doc.text((doc.splitTextToSize(value, CONTENT_W - 210) as string[])[0], textX + 62, my);
+    my += 12;
+  }
+  return y + cardH + 14;
+}
+
+// ---- policy section ---------------------------------------------------------
+
+interface PolicyView {
+  name: string;
+  description: string | null;
+  version: string | null;
+  headers: { header: string; required: boolean; expected: string }[];
+  csp: CSPPolicy | null; // full structured CSP policy, when available
+  cspChecks: { id: string; description: string; expected: string }[]; // reconstructed fallback
+  cspEvaluated: boolean;
+  fromSavedPolicy: boolean;
+}
+
+function buildPolicyView(data: PdfReportData, policy: Policy | null | undefined): PolicyView {
+  if (policy) {
+    return {
+      name: policy.name,
+      description: policy.description || null,
+      version: `v${policy.version}`,
+      headers: policy.headers.map((h: PolicyHeader) => ({
+        header: h.header_name,
+        required: h.required,
+        expected: h.expected_value,
+      })),
+      csp: policy.csp_policy,
+      cspChecks: [],
+      cspEvaluated: Boolean(policy.csp_policy),
+      fromSavedPolicy: true,
+    };
+  }
+  // Rebuilt from what the scan actually evaluated, so it is exact for that scan.
+  return {
+    name: data.policy_name,
+    description: null,
+    version: data.policy_version ?? null,
+    headers: data.findings.map((f) => ({ header: f.header, required: f.required, expected: f.policy_expected ?? "" })),
+    csp: null,
+    cspChecks: (data.csp_finding?.policy_checks ?? []).map((c) => ({
+      id: c.id ?? "-",
+      description: c.description,
+      expected: c.expected ?? "-",
+    })),
+    cspEvaluated: Boolean(data.csp_finding),
+    fromSavedPolicy: false,
+  };
+}
+
+function ruleRestrictions(rule: CSPDirectiveRule): string {
+  return [
+    rule.disallow_wildcards && "no wildcards",
+    rule.disallow_external && "no external sources",
+    rule.disallow_http && "no http: sources",
+    rule.disallow_data && "no data: sources",
+    rule.disallow_blob && "no blob: sources",
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function policySection(
+  doc: jsPDF,
+  y: number,
+  view: PolicyView,
+  note: string | null | undefined,
+  sections: SectionEntry[]
+): number {
+  y = beginSection(doc, y, "Policy Applied", "The rules this scan was evaluated against.", sections, { newPage: true });
+
+  // Identity card
+  const descLines = view.description ? (doc.splitTextToSize(view.description, CONTENT_W - 28) as string[]).slice(0, 4) : [];
+  const cardH = 44 + descLines.length * 11;
+  y = ensureSpace(doc, y, cardH + 10);
+  doc.setFillColor(...ACCENT_SOFT);
+  doc.setDrawColor(255, 214, 184);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(MARGIN_X, y, CONTENT_W, cardH, 6, 6, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...INK);
+  doc.text(view.name, MARGIN_X + 14, y + 21);
+  if (view.version) {
+    const nameW = doc.getTextWidth(view.name);
+    doc.setFontSize(8);
+    doc.setTextColor(...ACCENT);
+    doc.text(view.version.toUpperCase(), MARGIN_X + 22 + nameW, y + 21);
+  }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTED);
+  const counts =
+    `${view.headers.length} header rule${view.headers.length === 1 ? "" : "s"}` +
+    ` · Content-Security-Policy ${view.cspEvaluated ? "evaluated" : "not evaluated"}`;
+  doc.text(counts, MARGIN_X + 14, y + 35);
+  if (descLines.length) doc.text(descLines, MARGIN_X + 14, y + 48);
+  y += cardH + 12;
+
+  if (note) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    for (const line of doc.splitTextToSize(note, CONTENT_W) as string[]) {
+      y = ensureSpace(doc, y, 12);
+      doc.text(line, MARGIN_X, y);
+      y += 11;
+    }
+    y += 4;
+  }
+
+  if (view.headers.length > 0) {
+    autoTable(doc, {
+      ...TABLE_STYLE,
+      startY: y,
+      head: [["Header", "Requirement", "Expected value"]],
+      body: view.headers.map((h) => [
+        h.header,
+        h.required ? "Required" : "Optional",
+        h.expected.trim() ? h.expected : "Present (any value)",
+      ]),
+      columnStyles: { 0: { cellWidth: 150, fontStyle: "bold" }, 1: { cellWidth: 70 } },
+      didParseCell: (hook) => {
+        if (hook.section === "body" && hook.column.index === 1) {
+          hook.cell.styles.textColor = String(hook.cell.raw) === "Required" ? INK : MUTED;
+        }
+      },
+    });
+    y = finalY(doc) + 16;
+  }
+
+  // Content-Security-Policy rules
+  if (view.csp) {
+    y = ensureSpace(doc, y, 60);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...INK);
+    doc.text("Content-Security-Policy rules", MARGIN_X, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    y += 10;
+    doc.text(`Header required: ${view.csp.required ? "Yes" : "No"}`, MARGIN_X, y);
+    if (view.csp.required_directives.length > 0) {
+      y += 12;
+      const req = doc.splitTextToSize(`Required directives: ${view.csp.required_directives.join(", ")}`, CONTENT_W) as string[];
+      for (const line of req) {
+        y = ensureSpace(doc, y, 12);
+        doc.text(line, MARGIN_X, y);
+        y += 11;
+      }
+      y -= 11;
+    }
+    y += 10;
+    if (view.csp.directive_rules.length > 0) {
+      autoTable(doc, {
+        ...TABLE_STYLE,
+        startY: y,
+        head: [["Directive", "Must contain", "Must not contain", "Allowed sources", "Restrictions"]],
+        body: view.csp.directive_rules.map((r) => [
+          r.directive,
+          r.must_contain.join(", ") || "-",
+          r.must_not_contain.join(", ") || "-",
+          r.allowed_sources ? r.allowed_sources.join(", ") || "(none)" : "-",
+          ruleRestrictions(r) || "-",
+        ]),
+        columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
+      });
+      y = finalY(doc) + 16;
+    } else {
+      y += 4;
+    }
+  } else if (view.cspChecks.length > 0) {
+    y = ensureSpace(doc, y, 60);
+    autoTable(doc, {
+      ...TABLE_STYLE,
+      startY: y,
+      head: [["ID", "Content-Security-Policy rule", "Expected"]],
+      body: view.cspChecks.map((c) => [c.id, c.description, c.expected]),
+      columnStyles: { 0: { cellWidth: 60, fontStyle: "bold" } },
+    });
+    y = finalY(doc) + 16;
+  }
+  return y;
+}
+
+// ---- document -----------------------------------------------------------------
+
+export function downloadReportPdf(data: PdfReportData, options: PdfOptions = {}): void {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  let y = CONTENT_TOP;
+
+  y = summaryCard(doc, y, data);
 
   const passCount = data.findings.filter((f) => f.status === "PASS").length;
   const failCount = data.findings.filter((f) => f.status === "FAIL").length;
-  const gradeColor = STATUS_COLOR[data.grade === "F" ? "FAIL" : data.grade === "A" || data.grade === "B" ? "PASS" : "WARNING"];
+  const tileW = (CONTENT_W - 30) / 4;
+  statTile(doc, MARGIN_X, y, tileW, "Passed", String(passCount), PASS);
+  statTile(doc, MARGIN_X + (tileW + 10), y, tileW, "Failed", String(failCount), failCount > 0 ? FAIL : MUTED);
+  statTile(doc, MARGIN_X + (tileW + 10) * 2, y, tileW, "Headers checked", String(data.findings.length), INK);
+  statTile(
+    doc,
+    MARGIN_X + (tileW + 10) * 3,
+    y,
+    tileW,
+    "CSP score",
+    data.csp_finding ? String(data.csp_finding.overall_score) : "n/a",
+    data.csp_finding ? INK : MUTED
+  );
+  y += 46 + 26;
 
-  doc.setFontSize(15);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...gradeColor);
-  doc.text(`Score: ${data.score} (Grade ${data.grade})`, MARGIN_X, y);
-  y += 18;
+  const indexY = y + 6;
+  const sections: SectionEntry[] = [];
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(90);
-  doc.text(`${passCount} passed  ·  ${failCount} failed`, MARGIN_X, y);
-  y += 24;
+  y = policySection(doc, y, buildPolicyView(data, options.policy), options.policyNote, sections);
 
   if (data.findings.length > 0) {
+    y = beginSection(doc, y, "Header Findings", "Each header checked against the policy.", sections, { minSpace: 220 });
     autoTable(doc, {
+      ...TABLE_STYLE,
       startY: y,
       head: [["Header", "Status", "Severity", "Score", "Policy Expected", "Actual Value"]],
       body: data.findings.map((f) => [
@@ -99,40 +530,41 @@ export function downloadReportPdf(data: PdfReportData): void {
         f.status,
         f.severity,
         `${f.score_earned}/${f.score_possible}`,
-        f.policy_expected ?? "-",
+        f.policy_expected || "-",
         f.actual_value ?? "(missing)",
       ]),
-      margin: { left: MARGIN_X, right: MARGIN_X },
-      styles: { fontSize: 8, cellPadding: 5, overflow: "linebreak" },
-      headStyles: { fillColor: ACCENT_RGB, textColor: 255 },
-      columnStyles: { 4: { cellWidth: 110 }, 5: { cellWidth: 110 } },
+      columnStyles: { 0: { fontStyle: "bold" }, 4: { cellWidth: 110 }, 5: { cellWidth: 110 } },
       didParseCell: statusColorHook(1),
     });
-    y = finalY(doc) + 20;
+    y = finalY(doc) + 22;
   }
 
   const nonPassing = data.findings.filter((f) => f.status !== "PASS" && f.recommendation);
   if (nonPassing.length > 0) {
-    y = ensureSpace(doc, y, 40);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0);
-    doc.text("Recommendations", MARGIN_X, y);
-    y += 16;
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(60);
+    y = beginSection(doc, y, "Recommendations", "How to bring failing headers in line with the policy.", sections, {
+      minSpace: 150,
+    });
     for (const f of nonPassing) {
-      const lines = doc.splitTextToSize(`${f.header}: ${f.recommendation}`, 515) as string[];
-      for (const line of lines) {
-        y = ensureSpace(doc, y, 14);
-        doc.text(line, MARGIN_X, y);
-        y += 12;
-      }
-      y += 4;
+      const lines = doc.splitTextToSize(f.recommendation ?? "", CONTENT_W - 24) as string[];
+      const h = 26 + lines.length * 11;
+      y = ensureSpace(doc, y, h + 8);
+      doc.setFillColor(...CARD);
+      doc.setDrawColor(...LINE);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(MARGIN_X, y, CONTENT_W, h, 5, 5, "FD");
+      doc.setFillColor(...(STATUS_COLOR[f.status] ?? MUTED));
+      doc.roundedRect(MARGIN_X, y, 3.5, h, 1.5, 1.5, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(...INK);
+      doc.text(f.header, MARGIN_X + 14, y + 16);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(60, 60, 66);
+      doc.text(lines, MARGIN_X + 14, y + 29);
+      y += h + 8;
     }
-    y += 10;
+    y += 12;
   }
 
   if (data.csp_finding) {
@@ -157,49 +589,29 @@ export function downloadReportPdf(data: PdfReportData): void {
       ]),
     ];
     if (cspRows.length > 0) {
-      y = ensureSpace(doc, y, 60);
-      doc.setFontSize(13);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(0);
-      doc.text("Content-Security-Policy Analysis", MARGIN_X, y);
-      y += 14;
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(90);
-      doc.text(
-        `Policy Compliance: ${data.csp_finding.policy_checks_passed}/${data.csp_finding.policy_checks_total}` +
-          `  ·  Best-Practice: ${data.csp_finding.best_practice_passed}/${data.csp_finding.best_practice_total}` +
-          `  ·  Overall CSP Score: ${data.csp_finding.overall_score}`,
-        MARGIN_X,
-        y
+      y = beginSection(
+        doc,
+        y,
+        "Content-Security-Policy Analysis",
+        `Policy compliance ${data.csp_finding.policy_checks_passed}/${data.csp_finding.policy_checks_total}` +
+          `  ·  Best practice ${data.csp_finding.best_practice_passed}/${data.csp_finding.best_practice_total}` +
+          `  ·  Overall CSP score ${data.csp_finding.overall_score}`,
+        sections,
+        { newPage: true }
       );
-      y += 14;
-
       autoTable(doc, {
+        ...TABLE_STYLE,
         startY: y,
         head: [["ID", "Category", "Check", "Severity", "Status", "Expected", "Actual"]],
         body: cspRows,
-        margin: { left: MARGIN_X, right: MARGIN_X },
-        styles: { fontSize: 8, cellPadding: 5, overflow: "linebreak" },
-        headStyles: { fillColor: ACCENT_RGB, textColor: 255 },
+        columnStyles: { 0: { fontStyle: "bold" } },
         didParseCell: statusColorHook(4),
       });
-      y = finalY(doc) + 16;
     }
   }
 
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    doc.text(
-      `Generated by Hedr on ${new Date().toLocaleString()}  ·  Page ${i} of ${pageCount}`,
-      MARGIN_X,
-      815
-    );
-  }
+  drawIndex(doc, indexY, sections);
+  decoratePages(doc);
 
   const slug = (data.target ?? "scan").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40);
   const suffix = data.scan_number ? `scan-${data.scan_number}` : "result";
