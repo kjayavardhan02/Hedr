@@ -272,6 +272,11 @@ class ScanReportSummary(BaseModel):
         from_attributes = True
 
 
+class ReportsExportRequest(BaseModel):
+    # Matches the list endpoint's cap (MAX_REPORTS_LISTED).
+    ids: list[str] = Field(..., min_length=1, max_length=200)
+
+
 class ScanReportOut(BaseModel):
     id: str
     scan_number: int

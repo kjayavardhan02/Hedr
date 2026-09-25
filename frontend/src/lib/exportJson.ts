@@ -1,8 +1,5 @@
+import { downloadBlob, slugify, todayStamp } from "./download";
 import type { ScanReport, ScanResult } from "./types";
-
-function slugify(value: string): string {
-  return value.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40);
-}
 
 /** Downloads the full report/result object as-is - unlike the PDF export,
  * this isn't reshaped for readability, so it's suited to feeding into
@@ -10,15 +7,18 @@ function slugify(value: string): string {
 export function downloadReportJson(data: ScanReport | ScanResult): void {
   const target = data.target ?? "scan";
   const suffix = "scan_number" in data && data.scan_number ? `scan-${data.scan_number}` : "result";
-  const filename = `hedr-${slugify(target)}-${suffix}.json`;
+  downloadBlob(
+    JSON.stringify(data, null, 2),
+    `hedr-${slugify(target)}-${suffix}.json`,
+    "application/json"
+  );
+}
 
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+/** Full reports (findings included) as one JSON array. */
+export function downloadReportsJson(reports: ScanReport[], filtered: boolean): void {
+  downloadBlob(
+    JSON.stringify(reports, null, 2),
+    `hedr-reports${filtered ? "-filtered" : ""}-${todayStamp()}.json`,
+    "application/json"
+  );
 }

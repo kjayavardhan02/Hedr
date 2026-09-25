@@ -5,7 +5,7 @@ from app import models
 from app.core import scan_comparison
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.schemas import ComparisonResponse, ScanReportOut, ScanReportSummary
+from app.schemas import ComparisonResponse, ReportsExportRequest, ScanReportOut, ScanReportSummary
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -22,6 +22,26 @@ def list_reports(db: Session = Depends(get_db), current_user: models.User = Depe
         .filter(models.ScanReport.owner_id == current_user.id)
         .order_by(models.ScanReport.scanned_at.desc())
         .limit(MAX_REPORTS_LISTED)
+        .all()
+    )
+
+
+@router.post("/export", response_model=list[ScanReportOut])
+def export_reports(
+    payload: ReportsExportRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Full reports (findings included) for the given ids, for bulk export.
+    Ids that don't exist or belong to someone else are silently skipped, the
+    same not-found treatment as the single-report endpoint."""
+    return (
+        db.query(models.ScanReport)
+        .filter(
+            models.ScanReport.owner_id == current_user.id,
+            models.ScanReport.id.in_(payload.ids),
+        )
+        .order_by(models.ScanReport.scanned_at.desc())
         .all()
     )
 

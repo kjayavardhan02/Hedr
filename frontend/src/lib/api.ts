@@ -105,6 +105,8 @@ export const api = {
     }),
   listReports: () => request<ScanReportSummary[]>("/api/reports"),
   getReport: (id: string) => request<ScanReport>(`/api/reports/${id}`),
+  exportReports: (ids: string[]) =>
+    request<ScanReport[]>("/api/reports/export", { method: "POST", body: JSON.stringify({ ids }) }),
   getReportComparison: (id: string) => request<ComparisonResponse>(`/api/reports/${id}/comparison`),
   deleteReport: (id: string) => request<void>(`/api/reports/${id}`, { method: "DELETE" }),
   getDashboardSummary: () => request<DashboardSummary>("/api/dashboard/summary"),
