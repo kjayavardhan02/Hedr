@@ -556,10 +556,14 @@ _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def normalize_origin(value: str) -> str:
-    """Canonical form of an origin: lower-case scheme and host, default port
-    and trailing slash dropped. `*` and `null` are kept as literals. Anything
-    that doesn't parse as an origin is compared as opaque lower-cased text -
-    never guessed into equality with a different origin."""
+    """Canonical form of an origin: scheme + host + effective port.
+
+    Scheme and host are lower-cased; a port is dropped only when it is the
+    default *for that scheme* (http:80, https:443), so `https://x:80` and
+    `http://x:443` keep theirs. Origins are parsed, never string-compared.
+    `*` and `null` are kept as literals. Anything that isn't a plain origin
+    (credentials, path, query, empty port, unparsable) is compared as opaque
+    lower-cased text - never guessed into equality with a different origin."""
     text = normalize_ws(value)
     if text in ("*", "null") or text.lower() == "null":
         return text.lower()
@@ -568,7 +572,19 @@ def normalize_origin(value: str) -> str:
         port = parts.port
     except ValueError:
         return text.lower()
-    if parts.scheme and parts.hostname and parts.path in ("", "/") and not parts.query and not parts.fragment:
+    plain_authority = (
+        parts.username is None  # `https://evil@example.com` is not the origin example.com
+        and parts.password is None
+        and not parts.netloc.endswith(":")
+    )
+    if (
+        plain_authority
+        and parts.scheme
+        and parts.hostname
+        and parts.path in ("", "/")
+        and not parts.query
+        and not parts.fragment
+    ):
         scheme = parts.scheme.lower()
         host = parts.hostname.lower()
         host_text = f"[{host}]" if ":" in host else host
@@ -576,6 +592,12 @@ def normalize_origin(value: str) -> str:
             return f"{scheme}://{host_text}:{port}"
         return f"{scheme}://{host_text}"
     return text.lower()
+
+
+def origins_match(policy_origin: str, header_origin: str) -> bool:
+    """Whether two origins are the same after canonicalisation. Kept separate
+    from normalisation so policy evaluation only asks a yes/no question."""
+    return normalize_origin(policy_origin) == normalize_origin(header_origin)
 
 
 def origin_comparator(header: str, expected: str, actual: str | None) -> ComparisonOutcome:
@@ -614,10 +636,18 @@ def origin_comparator(header: str, expected: str, actual: str | None) -> Compari
             actual=actual,
         )
     else:
-        ok = actual_origin in allowed
+        ok = any(origins_match(candidate, actual) for candidate in allowed)
+        if ok and actual.strip() != actual_origin:
+            # Don't hide that normalisation happened - informational, not a finding.
+            description = (
+                "Origin matches policy after canonicalization "
+                f"({normalize_ws(actual)} \u2192 {actual_origin})."
+            )
+        else:
+            description = f"Origin must be one of: {', '.join(allowed)}."
         check = CheckResult(
             name="origin-match",
-            description=f"Origin must be one of: {', '.join(allowed)}.",
+            description=description,
             status=Status.PASS if ok else Status.FAIL,
             expected=" | ".join(allowed),
             actual=actual,

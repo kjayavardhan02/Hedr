@@ -626,3 +626,103 @@ class TestXFrameOptions:
         outcome = x_frame_options_comparator(self.H, "DENY", "ALLOW-FROM https://example.com")
         assert outcome.status == FAIL
         assert "obsolete" in outcome.checks[0].description
+
+
+# ---------------------------------------------------------------------------
+# CORS origin normalization & policy matching (spec: cors-origin-normalization)
+# ---------------------------------------------------------------------------
+
+
+class TestOriginsMatch:
+    """The spec's 14 cases, through the yes/no matching function."""
+
+    @pytest.mark.parametrize(
+        "policy, header, expected",
+        [
+            # default ports (tests 1-4)
+            ("https://example.com", "https://example.com:443", True),
+            ("https://example.com:443", "https://example.com", True),
+            ("http://example.com", "http://example.com:80", True),
+            ("http://example.com:80", "http://example.com", True),
+            # non-default ports (5-8)
+            ("https://example.com:8443", "https://example.com:8443", True),
+            ("https://example.com", "https://example.com:8443", False),
+            ("https://example.com:8443", "https://example.com", False),
+            ("https://example.com:1234", "https://example.com:5678", False),
+            # scheme (9-10)
+            ("https://example.com", "http://example.com", False),
+            ("http://example.com", "https://example.com", False),
+            # case (11-12)
+            ("https://example.com", "https://EXAMPLE.COM", True),
+            ("https://EXAMPLE.COM:443", "https://example.com", True),
+            # a port is only dropped for its own scheme (13-14)
+            ("http://example.com:443", "http://example.com", False),
+            ("https://example.com:80", "https://example.com", False),
+        ],
+    )
+    def test_spec_cases(self, policy, header, expected):
+        from app.core.comparators import origins_match
+
+        assert origins_match(policy, header) is expected
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("http://example.com:443", "http://example.com:443"),
+            ("http://example.com:1234", "http://example.com:1234"),
+            ("https://example.com:80", "https://example.com:80"),
+            ("https://example.com:1234", "https://example.com:1234"),
+            ("https://EXAMPLE.COM:443", "https://example.com"),
+        ],
+    )
+    def test_canonical_forms_table(self, raw, expected):
+        assert normalize_origin(raw) == expected
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "https://attacker@example.com",
+            "https://user:pw@example.com:443",
+            "https://example.com:",
+        ],
+    )
+    def test_malformed_origin_is_never_collapsed_into_a_valid_one(self, raw):
+        from app.core.comparators import origins_match
+
+        assert not origins_match("https://example.com", raw)
+        assert (
+            origin_comparator("Access-Control-Allow-Origin", "https://example.com", raw).status == FAIL
+        )
+
+
+class TestOriginComparatorReporting:
+    H = "Access-Control-Allow-Origin"
+
+    def test_default_port_and_case_pass_with_a_normalization_note(self):
+        outcome = origin_comparator(self.H, "https://example.com", "https://EXAMPLE.COM:443")
+        assert outcome.status == PASS
+        description = outcome.checks[0].description
+        assert "canonicalization" in description
+        assert "https://EXAMPLE.COM:443" in description and "https://example.com" in description
+        # Raw value is preserved for display; only the comparison is normalized.
+        assert outcome.checks[0].actual == "https://EXAMPLE.COM:443"
+
+    def test_exact_match_has_no_normalization_note(self):
+        outcome = origin_comparator(self.H, "https://example.com", "https://example.com")
+        assert outcome.status == PASS
+        assert "canonicalization" not in outcome.checks[0].description
+
+    def test_non_default_port_matching_policy_passes(self):
+        assert origin_comparator(self.H, "https://api.example.com:8443", "https://api.example.com:8443").status == PASS
+
+    def test_non_default_port_not_in_policy_is_a_plain_mismatch_not_a_vulnerability(self):
+        outcome = origin_comparator(self.H, "https://api.example.com", "https://api.example.com:8443")
+        assert outcome.status == FAIL
+        text = outcome.checks[0].description.lower()
+        assert "vulnerab" not in text
+
+    def test_allowlist_with_mixed_default_and_custom_ports(self):
+        policy = "https://a.com|https://b.com:8443"
+        assert origin_comparator(self.H, policy, "https://a.com:443").status == PASS
+        assert origin_comparator(self.H, policy, "HTTPS://B.COM:8443").status == PASS
+        assert origin_comparator(self.H, policy, "https://b.com").status == FAIL
