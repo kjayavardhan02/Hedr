@@ -241,6 +241,22 @@ export default function ScanPage() {
           </div>
         ) : (
           <div className="fade-in" key="adhoc-policy-field">
+            <div className="adhoc-note" role="note">
+              <span className="adhoc-note-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 8h.01" />
+                </svg>
+              </span>
+              <div>
+                <strong>This policy won&apos;t be saved.</strong> It&apos;s used for this scan only and
+                won&apos;t appear in your Policies list. The scan report keeps its name, marked
+                &quot;ad-hoc&quot;, but the rules can&apos;t be reused or compared later. To keep a policy,{" "}
+                <a href="/policies/new" target="_blank" rel="noopener noreferrer">
+                  create a saved policy
+                </a>.
+              </div>
+            </div>
             <div className="field">
               <label>Policy name (for this scan only)</label>
               <input

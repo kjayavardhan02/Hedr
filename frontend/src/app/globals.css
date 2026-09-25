@@ -3114,3 +3114,30 @@ a {
   color: var(--fail);
   font-weight: 600;
 }
+
+/* --- Ad-hoc policy note ---------------------------------------------------- */
+
+.adhoc-note {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: rgba(255, 176, 32, 0.07);
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+}
+
+.adhoc-note strong {
+  color: var(--text);
+}
+
+.adhoc-note-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--warn);
+}
