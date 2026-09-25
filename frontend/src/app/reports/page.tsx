@@ -8,6 +8,11 @@ import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 import { normalizeTargetName, roundDelta } from "@/lib/format";
+import { ExportDropdown } from "@/components/ExportDropdown";
+import { DateRangeFilter, FilterBar, SearchField, type FilterTab } from "@/components/FilterBar";
+import { inDateRange } from "@/lib/filters";
+import { downloadReportsCsv } from "@/lib/exportCsv";
+import { downloadReportsJson } from "@/lib/exportJson";
 
 function gradeBadgeClass(grade: string): string {
   if (grade === "A" || grade === "B") return "badge-PASS";
@@ -88,11 +93,17 @@ type FilterField = "policy" | "target" | "date" | "grade";
 const GRADES = ["A", "B", "C", "D", "F"];
 const PAGE_SIZE = 30;
 
-/** yyyy-mm-dd of a timestamp in the viewer's local timezone, to match <input type="date">. */
-function localDateKey(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const FILTER_TABS: FilterTab<FilterField>[] = [
+  { field: "target", label: "Target", icon: "target" },
+  { field: "policy", label: "Policy", icon: "policy" },
+  { field: "date", label: "Date", icon: "date" },
+  { field: "grade", label: "Grade", icon: "grade" },
+];
+
+function gradeTone(grade: string): "good" | "mid" | "bad" {
+  if (grade === "A" || grade === "B") return "good";
+  if (grade === "C" || grade === "D") return "mid";
+  return "bad";
 }
 
 type ReportRowProps = {
@@ -183,6 +194,11 @@ export default function ReportsPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [grades, setGrades] = useState<string[]>([]);
+  const gradeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of reports) counts[r.grade] = (counts[r.grade] ?? 0) + 1;
+    return counts;
+  }, [reports]);
   // The input stays instant; the (larger) list re-filters at lower priority.
   const deferredText = useDeferredValue(filterText);
   const filterActive =
@@ -198,10 +214,25 @@ export default function ReportsPage() {
       if (filterField === "policy") return r.policy_name.toLowerCase().includes(needle);
       if (filterField === "target") return (r.target ?? "").toLowerCase().includes(needle);
       if (filterField === "grade") return grades.includes(r.grade);
-      const day = localDateKey(r.scanned_at);
-      return (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo);
+      return inDateRange(r.scanned_at, dateFrom, dateTo);
     });
   }, [reports, filterActive, filterField, deferredText, dateFrom, dateTo, grades]);
+
+  const [exporting, setExporting] = useState(false);
+
+  // Exports what the list currently shows: everything when no filter is
+  // active, otherwise only the filtered reports (not just the visible page).
+  async function exportJson() {
+    setExporting(true);
+    try {
+      const full = await api.exportReports(visibleReports.map((r) => r.id));
+      downloadReportsJson(full, filterActive);
+    } catch (e) {
+      toast.show(e instanceof ApiError ? e.message : "Export failed.", "error");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
   // Any filter change starts again from the first page.
@@ -297,63 +328,71 @@ export default function ReportsPage() {
       )}
 
       {!loading && reports.length > 0 && (
-        <div className="panel report-filter fade-in-up">
-          <select
-            aria-label="Filter by"
-            value={filterField}
-            onChange={(e) => {
-              setFilterField(e.target.value as FilterField);
-              clearFilter();
-            }}
-          >
-            <option value="target">Target name</option>
-            <option value="policy">Policy name</option>
-            <option value="date">Date</option>
-            <option value="grade">Grade</option>
-          </select>
+        <FilterBar
+          tabs={FILTER_TABS}
+          active={filterField}
+          onTab={(field) => {
+            setFilterField(field);
+            clearFilter();
+          }}
+          count={visibleReports.length}
+          total={reports.length}
+          noun="report"
+          filterActive={filterActive}
+          onClear={clearFilter}
+          actions={
+            <ExportDropdown
+              label={`Export ${filterActive ? "filtered" : "all"} (${visibleReports.length})`}
+              disabled={visibleReports.length === 0}
+              busy={exporting}
+              items={[
+                { label: "Download JSON", onSelect: exportJson },
+                {
+                  label: "Download CSV",
+                  onSelect: () => downloadReportsCsv(visibleReports, filterActive),
+                },
+              ]}
+            />
+          }
+        >
           {filterField === "grade" ? (
-            <div className="report-filter-grades" role="group" aria-label="Grades">
-              {GRADES.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  className={`btn btn-sm ${grades.includes(g) ? "" : "btn-secondary"}`}
-                  aria-pressed={grades.includes(g)}
-                  onClick={() => setGrades((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]))}
-                >
-                  {g}
-                </button>
-              ))}
+            <div className="rf-chips" role="group" aria-label="Grades">
+              {GRADES.map((g) => {
+                const on = grades.includes(g);
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`rf-grade rf-grade-${gradeTone(g)} ${on ? "rf-grade-on" : ""}`}
+                    aria-pressed={on}
+                    onClick={() =>
+                      setGrades((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]))
+                    }
+                  >
+                    <span className="rf-grade-letter">{g}</span>
+                    <span className="rf-grade-count">{gradeCounts[g] ?? 0}</span>
+                  </button>
+                );
+              })}
+              <span className="rf-hint">Select one or more grades</span>
             </div>
           ) : filterField === "date" ? (
-            <>
-              <label className="field-hint">
-                From <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(e) => setDateFrom(e.target.value)} />
-              </label>
-              <label className="field-hint">
-                To <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(e) => setDateTo(e.target.value)} />
-              </label>
-            </>
+            <DateRangeFilter
+              from={dateFrom}
+              to={dateTo}
+              onChange={(from, to) => {
+                setDateFrom(from);
+                setDateTo(to);
+              }}
+            />
           ) : (
-            <input
-              type="text"
-              aria-label="Filter text"
-              placeholder={filterField === "policy" ? "Search policy name…" : "Search target name…"}
+            <SearchField
               value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
+              onChange={setFilterText}
+              placeholder={filterField === "policy" ? "Search by policy name…" : "Search by target name…"}
             />
           )}
-          {filterActive && (
-            <>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilter}>
-                Clear
-              </button>
-              <span className="field-hint">
-                Showing {visibleReports.length} of {reports.length}
-              </span>
-            </>
-          )}
-        </div>
+        </FilterBar>
       )}
 
       {!loading && (
