@@ -1,5 +1,12 @@
 "use client";
 
+import { CharCount } from "@/components/CharCount";
+import {
+  POLICY_NAME_MAX_LENGTH,
+  RAW_RESPONSE_MAX_LENGTH,
+  SCAN_URL_MAX_LENGTH,
+  TARGET_NAME_MAX_LENGTH,
+} from "@/lib/limits";
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -12,7 +19,6 @@ import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { Spinner } from "@/components/Spinner";
 
-const TARGET_NAME_MAX_LENGTH = 50;
 
 const EXAMPLE_RAW = `HTTP/1.1 200 OK
 Content-Type: text/html
@@ -146,8 +152,10 @@ export default function ScanPage() {
             <input
               placeholder="https://example.com"
               value={url}
+              maxLength={SCAN_URL_MAX_LENGTH}
               onChange={(e) => setUrl(e.target.value)}
             />
+            <CharCount length={url.length} max={SCAN_URL_MAX_LENGTH} showFrom={0.8} />
             <span className="field-hint">
               Hedr fetches this URL server-side and reads the response headers.
               Requests to private/internal addresses are blocked.
@@ -175,9 +183,11 @@ export default function ScanPage() {
                 rows={10}
                 placeholder={EXAMPLE_RAW}
                 value={rawResponse}
+                maxLength={RAW_RESPONSE_MAX_LENGTH}
                 onChange={(e) => setRawResponse(e.target.value)}
                 className="mono"
               />
+              <CharCount length={rawResponse.length} max={RAW_RESPONSE_MAX_LENGTH} showFrom={0.5} />
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -233,7 +243,12 @@ export default function ScanPage() {
           <div className="fade-in" key="adhoc-policy-field">
             <div className="field">
               <label>Policy name (for this scan only)</label>
-              <input value={adhocName} onChange={(e) => setAdhocName(e.target.value)} />
+              <input
+                value={adhocName}
+                maxLength={POLICY_NAME_MAX_LENGTH}
+                onChange={(e) => setAdhocName(e.target.value)}
+              />
+              <CharCount length={adhocName.length} max={POLICY_NAME_MAX_LENGTH} showFrom={0.8} />
             </div>
             <HeaderPolicyEditor headers={adhocHeaders} onChange={setAdhocHeaders} />
             <div style={{ marginTop: 18 }}>

@@ -3078,3 +3078,21 @@ a {
     justify-content: space-between;
   }
 }
+
+/* --- Input length counters ------------------------------------------------ */
+
+.char-count {
+  align-self: flex-end;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.char-count-near {
+  color: var(--warn);
+}
+
+.char-count-full {
+  color: var(--fail);
+  font-weight: 600;
+}

@@ -1,5 +1,7 @@
 "use client";
 
+import { CharCount } from "@/components/CharCount";
+import { POLICY_DESCRIPTION_MAX_LENGTH, POLICY_NAME_MAX_LENGTH } from "@/lib/limits";
 import { duplicateHeaderMessage, duplicateHeaderNames, uniqueCopyName } from "@/lib/policyValidation";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -94,11 +96,21 @@ function NewPolicyForm() {
         <div className="panel fade-in-up">
           <div className="field">
             <label>Policy name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              value={name}
+              maxLength={POLICY_NAME_MAX_LENGTH}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <CharCount length={name.length} max={POLICY_NAME_MAX_LENGTH} />
           </div>
           <div className="field">
             <label>Description</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
+            <input
+              value={description}
+              maxLength={POLICY_DESCRIPTION_MAX_LENGTH}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <CharCount length={description.length} max={POLICY_DESCRIPTION_MAX_LENGTH} showFrom={0.5} />
           </div>
 
           <HeaderPolicyEditor headers={headers} onChange={setHeaders} />

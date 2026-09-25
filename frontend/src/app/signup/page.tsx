@@ -1,5 +1,7 @@
 "use client";
 
+import { CharCount } from "@/components/CharCount";
+import { PERSON_NAME_MAX_LENGTH } from "@/lib/limits";
 import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -94,8 +96,10 @@ export default function SignupPage() {
               placeholder="Ada"
               required
               value={firstName}
+              maxLength={PERSON_NAME_MAX_LENGTH}
               onChange={(e) => setFirstName(e.target.value)}
             />
+            <CharCount length={firstName.length} max={PERSON_NAME_MAX_LENGTH} showFrom={0.8} />
           </div>
           <div className="field" style={{ flex: 1, minWidth: 140 }}>
             <label htmlFor={lastNameId}>Last name</label>
@@ -106,8 +110,10 @@ export default function SignupPage() {
               placeholder="Lovelace"
               required
               value={lastName}
+              maxLength={PERSON_NAME_MAX_LENGTH}
               onChange={(e) => setLastName(e.target.value)}
             />
+            <CharCount length={lastName.length} max={PERSON_NAME_MAX_LENGTH} showFrom={0.8} />
           </div>
         </div>
 

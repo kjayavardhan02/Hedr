@@ -1,3 +1,4 @@
+import { POLICY_NAME_MAX_LENGTH } from "./limits";
 /** Header names that appear more than once in a policy (case-insensitive),
  * each listed once in the spelling first used. The backend rejects these on
  * save; checking here lets the builder warn before a round trip. */
@@ -25,7 +26,7 @@ const COPY_SUFFIX = /\s*\(copy(?: \d+)?\)$/i;
  * whichever is not already taken. Cloning a copy reuses the original base
  * name instead of stacking suffixes, and the base is shortened if needed so
  * the result stays within the API's name length limit. */
-export function uniqueCopyName(name: string, existingNames: string[], maxLength = 200): string {
+export function uniqueCopyName(name: string, existingNames: string[], maxLength = POLICY_NAME_MAX_LENGTH): string {
   const base = name.replace(COPY_SUFFIX, "").trim() || name;
   const taken = new Set(existingNames.map((n) => n.trim().toLowerCase()));
   let candidate = "";

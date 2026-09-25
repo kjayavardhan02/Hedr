@@ -1,5 +1,7 @@
 "use client";
 
+import { CharCount } from "@/components/CharCount";
+import { POLICY_DESCRIPTION_MAX_LENGTH, POLICY_NAME_MAX_LENGTH } from "@/lib/limits";
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -134,15 +136,25 @@ export default function EditPolicyPage() {
       <div className="panel fade-in-up">
         <div className="field">
           <label>Policy name</label>
-          <input value={name} disabled={readOnly} onChange={(e) => setName(e.target.value)} />
+          <input
+            value={name}
+            disabled={readOnly}
+            maxLength={POLICY_NAME_MAX_LENGTH}
+            onChange={(e) => setName(e.target.value)}
+          />
+          {!readOnly && <CharCount length={name.length} max={POLICY_NAME_MAX_LENGTH} />}
         </div>
         <div className="field">
           <label>Description</label>
           <input
             value={description}
             disabled={readOnly}
+            maxLength={POLICY_DESCRIPTION_MAX_LENGTH}
             onChange={(e) => setDescription(e.target.value)}
           />
+          {!readOnly && (
+            <CharCount length={description.length} max={POLICY_DESCRIPTION_MAX_LENGTH} showFrom={0.5} />
+          )}
         </div>
 
         {readOnly ? (

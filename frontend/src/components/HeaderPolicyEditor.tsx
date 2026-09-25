@@ -1,5 +1,7 @@
 "use client";
 
+import { CharCount } from "@/components/CharCount";
+import { HEADER_EXPECTED_VALUE_MAX_LENGTH, HEADER_NAME_MAX_LENGTH } from "@/lib/limits";
 import type { PolicyHeader } from "@/lib/types";
 import { headerKind } from "@/lib/headerValueSyntax";
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
@@ -87,6 +89,7 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
               list="common-headers"
               placeholder="e.g. Strict-Transport-Security"
               value={h.header_name}
+              maxLength={HEADER_NAME_MAX_LENGTH}
               onChange={(e) => updateRow(i, { header_name: e.target.value })}
             />
           </div>
@@ -104,8 +107,10 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
                 <input
                   placeholder="e.g. max-age=31536000; includeSubDomains; preload (leave blank to just require presence)"
                   value={h.expected_value}
+                  maxLength={HEADER_EXPECTED_VALUE_MAX_LENGTH}
                   onChange={(e) => updateRow(i, { expected_value: e.target.value })}
                 />
+                <CharCount length={h.expected_value.length} max={HEADER_EXPECTED_VALUE_MAX_LENGTH} showFrom={0.8} />
                 <span className="field-hint">
                   Tip: separate multiple allowed values with &quot;|&quot;, e.g.{" "}
                   <code>no-referrer|strict-origin</code>.

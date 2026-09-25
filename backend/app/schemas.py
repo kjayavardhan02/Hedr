@@ -17,8 +17,8 @@ class UserCreate(BaseModel):
     # max_length keeps this comfortably under bcrypt's hard 72-byte input
     # limit even for multi-byte UTF-8 passwords.
     password: str = Field(..., min_length=8, max_length=72)
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
 
     @field_validator("first_name", "last_name")
     @classmethod
@@ -51,8 +51,8 @@ class UserOut(BaseModel):
 
 
 class PolicyHeaderIn(BaseModel):
-    header_name: str = Field(..., min_length=1, max_length=200)
-    expected_value: str = Field(default="", max_length=8000)
+    header_name: str = Field(..., min_length=1, max_length=100)
+    expected_value: str = Field(default="", max_length=2000)
     required: bool = True
 
 
@@ -94,8 +94,9 @@ class CSPPolicy(BaseModel):
 
 
 class PolicyCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=200)
-    description: str = ""
+    # Mirrored by the frontend's lib/limits.ts - keep the two in step.
+    name: str = Field(..., min_length=1, max_length=50)
+    description: str = Field(default="", max_length=200)
     headers: list[PolicyHeaderIn] = Field(default_factory=list)
     csp_policy: CSPPolicy | None = None
 
