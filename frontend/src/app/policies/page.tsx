@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { DateRangeFilter, FilterBar, SearchField, type FilterTab } from "@/components/FilterBar";
 import { inDateRange } from "@/lib/filters";
+import { Highlight } from "@/components/Highlight";
 
 type PolicyFilterField = "name" | "date" | "type";
 type PolicyTypeFilter = "csp" | "headers" | "";
@@ -92,6 +93,7 @@ export default function PoliciesPage() {
     });
   }, [policies, filterActive, filterField, filterText, typeFilter, dateFrom, dateTo]);
 
+  const nameQuery = filterField === "name" ? filterText : "";
   const baselines = visiblePolicies.filter((p) => p.is_baseline);
   const custom = visiblePolicies.filter((p) => !p.is_baseline);
 
@@ -193,7 +195,7 @@ export default function PoliciesPage() {
                 <div className="policy-card" key={p.id}>
                   <div className="policy-card-info">
                     <div style={{ fontWeight: 600 }}>
-                      {p.name}
+                      <Highlight text={p.name} query={nameQuery} />
                       <span className="pill">v{p.version}</span>
                     </div>
                     <div className="policy-card-meta">
@@ -237,7 +239,7 @@ export default function PoliciesPage() {
                 <div className="policy-card" key={p.id}>
                   <div className="policy-card-info">
                     <div style={{ fontWeight: 600 }}>
-                      {p.name}
+                      <Highlight text={p.name} query={nameQuery} />
                       <span className="pill">baseline</span>
                     </div>
                     <div className="policy-card-meta">

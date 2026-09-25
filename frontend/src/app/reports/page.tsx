@@ -9,6 +9,7 @@ import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 import { normalizeTargetName, roundDelta } from "@/lib/format";
 import { ExportDropdown } from "@/components/ExportDropdown";
+import { Highlight } from "@/components/Highlight";
 import { DateRangeFilter, FilterBar, SearchField, type FilterTab } from "@/components/FilterBar";
 import { inDateRange } from "@/lib/filters";
 import { downloadReportsCsv } from "@/lib/exportCsv";
@@ -113,6 +114,9 @@ type ReportRowProps = {
   deleting: boolean;
   onOpenPolicy: (policyId: string) => void;
   onDelete: (id: string) => void;
+  /** Text to highlight in the target / policy name (empty when not filtering by it). */
+  highlightTarget: string;
+  highlightPolicy: string;
 };
 
 // Memoised so typing in the filter box only re-renders rows whose props changed.
@@ -123,6 +127,8 @@ const ReportRow = memo(function ReportRow({
   deleting,
   onOpenPolicy,
   onDelete,
+  highlightTarget,
+  highlightPolicy,
 }: ReportRowProps) {
   return (
     <div className="policy-card">
@@ -130,7 +136,7 @@ const ReportRow = memo(function ReportRow({
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span className="report-scan-badge">{report.scan_number}</span>
           <span style={{ fontWeight: 600 }} className="mono">
-            {report.target ?? "—"}
+            {report.target ? <Highlight text={report.target} query={highlightTarget} /> : "—"}
           </span>
         </div>
         <div className="policy-card-meta">
@@ -140,10 +146,10 @@ const ReportRow = memo(function ReportRow({
               className="link-button"
               onClick={() => onOpenPolicy(report.policy_id as string)}
             >
-              {report.policy_name}
+              <Highlight text={report.policy_name} query={highlightPolicy} />
             </button>
           ) : (
-            report.policy_name
+            <Highlight text={report.policy_name} query={highlightPolicy} />
           )}{" "}
           <span className="report-version-pill">{report.policy_version}</span>
           {" · "}
@@ -414,6 +420,8 @@ export default function ReportsPage() {
                 deleting={deletingId === r.id}
                 onOpenPolicy={openPolicy}
                 onDelete={requestDelete}
+                highlightTarget={filterField === "target" ? deferredText : ""}
+                highlightPolicy={filterField === "policy" ? deferredText : ""}
               />
             ))
           )}

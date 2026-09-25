@@ -156,6 +156,8 @@ export function SearchField({
       <input
         type="text"
         aria-label="Filter text"
+        autoComplete="off"
+        spellCheck={false}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
