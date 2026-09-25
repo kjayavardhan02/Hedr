@@ -66,6 +66,14 @@ export interface FilterTab<T extends string> {
   field: T;
   label: string;
   icon: FilterIconName;
+  /** True when this filter currently has a value - shown as a dot on the tab. */
+  dot?: boolean;
+}
+
+export interface FilterChip {
+  key: string;
+  label: string;
+  onRemove: () => void;
 }
 
 /** Shared filter bar chrome: mode tabs, result summary, optional actions, and the active filter's controls. */
@@ -80,6 +88,7 @@ export function FilterBar<T extends string>({
   filterActive,
   onClear,
   actions,
+  chips = [],
   children,
 }: {
   tabs: FilterTab<T>[];
@@ -94,6 +103,8 @@ export function FilterBar<T extends string>({
   filterActive: boolean;
   onClear: () => void;
   actions?: ReactNode;
+  /** One removable chip per active filter, shown under the controls. */
+  chips?: FilterChip[];
   children: ReactNode;
 }) {
   return (
@@ -113,6 +124,7 @@ export function FilterBar<T extends string>({
             >
               <FilterIcon name={tab.icon} />
               {tab.label}
+              {tab.dot && <span className="rf-tab-dot" aria-label="filter active" />}
             </button>
           ))}
         </div>
@@ -137,6 +149,19 @@ export function FilterBar<T extends string>({
         </div>
       </div>
       <div className="rf-body">{children}</div>
+      {chips.length > 0 && (
+        <div className="rf-active" aria-label="Active filters">
+          <span className="rf-active-label">Active filters</span>
+          {chips.map((chip) => (
+            <span className="rf-active-chip" key={chip.key}>
+              <span className="rf-active-chip-text">{chip.label}</span>
+              <button type="button" aria-label={`Remove filter ${chip.label}`} onClick={chip.onRemove}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

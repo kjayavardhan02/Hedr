@@ -10,8 +10,8 @@ import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 import { normalizeTargetName, roundDelta } from "@/lib/format";
 import { ExportDropdown } from "@/components/ExportDropdown";
 import { Highlight } from "@/components/Highlight";
-import { DateRangeFilter, FilterBar, SearchField, type FilterTab } from "@/components/FilterBar";
-import { inDateRange } from "@/lib/filters";
+import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
+import { describeDateRange, inDateRange } from "@/lib/filters";
 import { downloadReportsCsv } from "@/lib/exportCsv";
 import { downloadReportsJson } from "@/lib/exportJson";
 
@@ -195,34 +195,39 @@ export default function ReportsPage() {
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Deltas are computed from the full history so filtering never changes them.
   const scoreDeltas = useMemo(() => computeScoreDeltas(reports), [reports]);
+  // Filters are independent and combine (AND): a report must match every active
+  // one. `filterField` is only which tab is being edited.
   const [filterField, setFilterField] = useState<FilterField>("target");
-  const [filterText, setFilterText] = useState("");
+  const [targetText, setTargetText] = useState("");
+  const [policyText, setPolicyText] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [grades, setGrades] = useState<string[]>([]);
+  // The inputs stay instant; the (larger) list re-filters at lower priority.
+  const deferredTarget = useDeferredValue(targetText);
+  const deferredPolicy = useDeferredValue(policyText);
+  const hasTarget = targetText.trim() !== "";
+  const hasPolicy = policyText.trim() !== "";
+  const hasDate = Boolean(dateFrom || dateTo);
+  const hasGrade = grades.length > 0;
+  const filterActive = hasTarget || hasPolicy || hasDate || hasGrade;
   const gradeCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of reports) counts[r.grade] = (counts[r.grade] ?? 0) + 1;
     return counts;
   }, [reports]);
-  // The input stays instant; the (larger) list re-filters at lower priority.
-  const deferredText = useDeferredValue(filterText);
-  const filterActive =
-    filterField === "date"
-      ? Boolean(dateFrom || dateTo)
-      : filterField === "grade"
-        ? grades.length > 0
-        : filterText.trim() !== "";
   const visibleReports = useMemo(() => {
-    if (!filterActive) return reports;
-    const needle = deferredText.trim().toLowerCase();
-    return reports.filter((r) => {
-      if (filterField === "policy") return r.policy_name.toLowerCase().includes(needle);
-      if (filterField === "target") return (r.target ?? "").toLowerCase().includes(needle);
-      if (filterField === "grade") return grades.includes(r.grade);
-      return inDateRange(r.scanned_at, dateFrom, dateTo);
-    });
-  }, [reports, filterActive, filterField, deferredText, dateFrom, dateTo, grades]);
+    const target = deferredTarget.trim().toLowerCase();
+    const policy = deferredPolicy.trim().toLowerCase();
+    if (!target && !policy && !dateFrom && !dateTo && grades.length === 0) return reports;
+    return reports.filter(
+      (r) =>
+        (!target || (r.target ?? "").toLowerCase().includes(target)) &&
+        (!policy || r.policy_name.toLowerCase().includes(policy)) &&
+        (grades.length === 0 || grades.includes(r.grade)) &&
+        inDateRange(r.scanned_at, dateFrom, dateTo)
+    );
+  }, [reports, deferredTarget, deferredPolicy, dateFrom, dateTo, grades]);
 
   const [exporting, setExporting] = useState(false);
 
@@ -244,15 +249,30 @@ export default function ReportsPage() {
   // Any filter change starts again from the first page.
   useEffect(() => {
     setShownCount(PAGE_SIZE);
-  }, [filterField, deferredText, dateFrom, dateTo, grades]);
+  }, [deferredTarget, deferredPolicy, dateFrom, dateTo, grades]);
   const pageReports = useMemo(() => visibleReports.slice(0, shownCount), [visibleReports, shownCount]);
 
   function clearFilter() {
-    setFilterText("");
+    setTargetText("");
+    setPolicyText("");
     setDateFrom("");
     setDateTo("");
     setGrades([]);
   }
+
+  const filterChips: FilterChip[] = [
+    hasTarget && { key: "target", label: `Target: ${targetText.trim()}`, onRemove: () => setTargetText("") },
+    hasPolicy && { key: "policy", label: `Policy: ${policyText.trim()}`, onRemove: () => setPolicyText("") },
+    hasDate && {
+      key: "date",
+      label: `Date: ${describeDateRange(dateFrom, dateTo)}`,
+      onRemove: () => {
+        setDateFrom("");
+        setDateTo("");
+      },
+    },
+    hasGrade && { key: "grade", label: `Grade: ${grades.join(", ")}`, onRemove: () => setGrades([]) },
+  ].filter((c): c is FilterChip => Boolean(c));
 
   function load() {
     setLoading(true);
@@ -335,12 +355,13 @@ export default function ReportsPage() {
 
       {!loading && reports.length > 0 && (
         <FilterBar
-          tabs={FILTER_TABS}
+          tabs={FILTER_TABS.map((t) => ({
+            ...t,
+            dot: { target: hasTarget, policy: hasPolicy, date: hasDate, grade: hasGrade }[t.field],
+          }))}
           active={filterField}
-          onTab={(field) => {
-            setFilterField(field);
-            clearFilter();
-          }}
+          onTab={setFilterField}
+          chips={filterChips}
           count={visibleReports.length}
           total={reports.length}
           noun="report"
@@ -393,8 +414,9 @@ export default function ReportsPage() {
             />
           ) : (
             <SearchField
-              value={filterText}
-              onChange={setFilterText}
+              key={filterField}
+              value={filterField === "policy" ? policyText : targetText}
+              onChange={filterField === "policy" ? setPolicyText : setTargetText}
               placeholder={filterField === "policy" ? "Search by policy name…" : "Search by target name…"}
             />
           )}
@@ -420,8 +442,8 @@ export default function ReportsPage() {
                 deleting={deletingId === r.id}
                 onOpenPolicy={openPolicy}
                 onDelete={requestDelete}
-                highlightTarget={filterField === "target" ? deferredText : ""}
-                highlightPolicy={filterField === "policy" ? deferredText : ""}
+                highlightTarget={deferredTarget}
+                highlightPolicy={deferredPolicy}
               />
             ))
           )}
