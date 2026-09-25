@@ -86,9 +86,26 @@ export function FindingCard({
               </div>
             )}
 
+            {finding.issue && (
+              <div className="value-row">
+                <span className="field-hint">Issue:</span>
+                <span>{finding.issue}</span>
+              </div>
+            )}
+
             {finding.recommendation && (
               <div className="recommendation">{finding.recommendation}</div>
             )}
+
+            {(finding.advisories ?? []).map((a, i) => (
+              <div className={`advisory advisory-${a.status.toLowerCase()}`} key={i}>
+                <div className="advisory-title">
+                  <StatusBadge status={a.status} /> {a.title}
+                </div>
+                <div>{a.message}</div>
+                {a.recommendation && <div className="advisory-rec">{a.recommendation}</div>}
+              </div>
+            ))}
 
             {finding.status !== "PASS" && (
               <AIExplain

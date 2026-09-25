@@ -651,6 +651,9 @@ def origin_comparator(header: str, expected: str, actual: str | None) -> Compari
             status=Status.PASS if ok else Status.FAIL,
             expected=" | ".join(allowed),
             actual=actual,
+            # Keep the raw value visible; show what it was normalized to when
+            # normalization changed it, so a reader can see why it matched.
+            evidence=f"Normalized: {actual_origin}" if normalize_ws(actual) != actual_origin else None,
         )
     return ComparisonOutcome(check.status, [check])
 

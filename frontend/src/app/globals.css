@@ -3532,3 +3532,33 @@ a {
   border-top: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* Legacy / caveat notes on a finding (separate from policy compliance). */
+.advisory {
+  margin-top: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: rgba(255, 176, 32, 0.07);
+  border: 1px solid rgba(255, 176, 32, 0.35);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+}
+
+.advisory-info {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--panel-border);
+  border-left-color: var(--text-dim);
+}
+
+.advisory-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.advisory-rec {
+  margin-top: 4px;
+  color: var(--text);
+}

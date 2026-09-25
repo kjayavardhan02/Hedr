@@ -119,6 +119,7 @@ def scan(
                 scan_result.csp_finding.model_dump(mode="json") if scan_result.csp_finding else None
             ),
             scanned_at=scan_result.scanned_at,
+            scanner_version=scan_result.scanner_version,
         )
         # Remember which scan this one is compared against, so deleting that
         # scan later makes the comparison unavailable rather than re-pointing it.

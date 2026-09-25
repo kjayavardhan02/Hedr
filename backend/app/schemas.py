@@ -195,6 +195,17 @@ class CheckResult(BaseModel):
     evidence: str | None = None
 
 
+class Advisory(BaseModel):
+    """A caveat about a header that is separate from policy compliance: the
+    value may PASS its policy check and still be legacy or obsolete."""
+
+    status: Status
+    severity: Literal["low", "medium", "high", "critical", "info"]
+    title: str
+    message: str
+    recommendation: str | None = None
+
+
 class HeaderFinding(BaseModel):
     header: str
     required: bool
@@ -207,7 +218,11 @@ class HeaderFinding(BaseModel):
     policy_expected: str | None
     actual_value: str | None
     checks: list[CheckResult] = Field(default_factory=list)
+    # `issue` says what is wrong, `recommendation` how to fix it; both only
+    # when the header did not pass. Reports saved before these existed lack them.
+    issue: str | None = None
     recommendation: str | None = None
+    advisories: list[Advisory] = Field(default_factory=list)
 
 
 class CSPFinding(BaseModel):
@@ -240,6 +255,7 @@ class ScanResult(BaseModel):
     csp_finding: CSPFinding | None = None
     raw_headers: dict[str, str]
     scanned_at: datetime
+    scanner_version: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -293,6 +309,7 @@ class ScanReportOut(BaseModel):
     findings: list[HeaderFinding]
     csp_finding: CSPFinding | None = None
     scanned_at: datetime
+    scanner_version: str | None = None
 
     class Config:
         from_attributes = True

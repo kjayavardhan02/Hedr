@@ -84,6 +84,17 @@ export interface CheckResult {
   evidence: string | null;
 }
 
+export type SeverityLevel = "low" | "medium" | "high" | "critical" | "info";
+
+/** A caveat separate from policy compliance (e.g. a header that passes its policy but is legacy). */
+export interface Advisory {
+  status: Status;
+  severity: SeverityLevel;
+  title: string;
+  message: string;
+  recommendation: string | null;
+}
+
 export interface HeaderFinding {
   header: string;
   required: boolean;
@@ -96,7 +107,11 @@ export interface HeaderFinding {
   policy_expected: string | null;
   actual_value: string | null;
   checks: CheckResult[];
+  /** What is wrong (only when the header did not pass; absent on older reports). */
+  issue?: string | null;
+  /** How to fix it. */
   recommendation: string | null;
+  advisories?: Advisory[];
 }
 
 export interface CSPFinding {
@@ -125,6 +140,7 @@ export interface ScanResult {
   csp_finding: CSPFinding | null;
   raw_headers: Record<string, string>;
   scanned_at: string;
+  scanner_version?: string | null;
 }
 
 export interface ScanReportSummary {
@@ -158,6 +174,7 @@ export interface ScanReport {
   findings: HeaderFinding[];
   csp_finding: CSPFinding | null;
   scanned_at: string;
+  scanner_version?: string | null;
 }
 
 export interface ComparisonReportRef {

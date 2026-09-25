@@ -9,8 +9,11 @@ from datetime import datetime, timezone
 from app.core import csp_analyzer
 from app.core.comparators import get_comparator, normalize_origin, parse_allow_from
 from app.core.csp_findings import CSPFindingId, severity_for
+from app.core.remediation import explain_failure
 from app.core.scoring import get_severity, get_weight, grade_for_score
+from app.version import SCANNER_VERSION
 from app.schemas import (
+    Advisory,
     CheckResult,
     CSPFinding,
     CSPPolicy,
@@ -38,12 +41,37 @@ XFO_TO_FRAME_ANCESTORS_EQUIVALENT = {
 }
 
 
-def _recommendation_for(header: str, status: Status, present: bool) -> str | None:
-    if status == Status.PASS:
-        return None
-    if not present:
-        return f"Add the '{header}' header to your HTTP response according to your security policy."
-    return f"Update the '{header}' header so its value complies with the configured policy."
+XSS_HEADER_NAME = "x-xss-protection"
+
+
+def _legacy_advisories(name_lower: str, actual: str | None, expected: str) -> list[Advisory]:
+    """Caveats that are separate from policy compliance. A header can match its
+    policy (PASS) and still be legacy or obsolete - the report says so without
+    changing the verdict."""
+    advisories: list[Advisory] = []
+    if name_lower == XFO_HEADER_NAME:
+        uses_allow_from = (actual or "").strip().lower().startswith("allow-from") or "allow-from" in expected.lower()
+        if uses_allow_from:
+            advisories.append(
+                Advisory(
+                    status=Status.WARNING,
+                    severity="info",
+                    title="Legacy / obsolete configuration",
+                    message="ALLOW-FROM is obsolete and ignored by current browsers, so it gives no real protection on its own.",
+                    recommendation="Use the Content-Security-Policy 'frame-ancestors' directive instead.",
+                )
+            )
+    if name_lower == XSS_HEADER_NAME and actual is not None:
+        advisories.append(
+            Advisory(
+                status=Status.INFO,
+                severity="info",
+                title="Legacy security control",
+                message="X-XSS-Protection is deprecated; modern browsers ignore it, and the old XSS filter could itself introduce vulnerabilities.",
+                recommendation="Rely on a strict Content-Security-Policy instead, and set 'X-XSS-Protection: 0' or omit the header.",
+            )
+        )
+    return advisories
 
 
 def _evaluate_xfo_via_csp_frame_ancestors(
@@ -194,6 +222,11 @@ def evaluate_header(policy_header: PolicyHeaderIn, raw_headers: dict[str, str]) 
             )
         ]
 
+    if status == Status.PASS:
+        issue = remediation = None
+    else:
+        issue, remediation = explain_failure(name, policy_header.expected_value or None, actual_value, present, checks)
+
     return HeaderFinding(
         header=name,
         required=policy_header.required,
@@ -206,7 +239,9 @@ def evaluate_header(policy_header: PolicyHeaderIn, raw_headers: dict[str, str]) 
         policy_expected=policy_header.expected_value or None,
         actual_value=actual_value,
         checks=checks,
-        recommendation=_recommendation_for(name, status, present),
+        issue=issue,
+        recommendation=remediation,
+        advisories=_legacy_advisories(name_lower, actual_value, policy_header.expected_value),
     )
 
 
@@ -307,4 +342,5 @@ def run_scan(
         csp_finding=csp_finding,
         raw_headers=raw_headers,
         scanned_at=datetime.now(timezone.utc),
+        scanner_version=SCANNER_VERSION,
     )

@@ -108,6 +108,8 @@ class ScanReport(Base):
     # report is later deleted the comparison is reported as unavailable
     # instead of silently switching to an older scan.
     previous_report_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Scanner build that produced the report (null for reports saved before this existed).
+    scanner_version: Mapped[str | None] = mapped_column(String, nullable=True)
     # No real policy versioning exists yet - every report is stamped "v1"
     # until that's built, so the column already exists when it is.
     policy_version: Mapped[str] = mapped_column(String, nullable=False, default="v1")

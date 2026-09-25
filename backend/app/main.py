@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import models, seed
+from app.version import SCANNER_VERSION
 from app.database import Base, SessionLocal, engine, ensure_schema
 from app.routers import auth, dashboard, explain, policies, reports, scan
 
@@ -20,7 +21,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Hedr API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Hedr API", version=SCANNER_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
