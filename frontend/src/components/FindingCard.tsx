@@ -86,10 +86,19 @@ export function FindingCard({
               </div>
             )}
 
+            {finding.checks
+              .filter((c) => c.reason)
+              .map((c, i) => (
+                <div className="value-row" key={`reason-${i}`}>
+                  <span className="field-hint">Reason:</span>
+                  <span style={{ fontSize: 13.5 }}>{c.reason}</span>
+                </div>
+              ))}
+
             {finding.issue && (
               <div className="value-row">
                 <span className="field-hint">Issue:</span>
-                <span>{finding.issue}</span>
+                <span style={{ fontSize: 13.5 }}>{finding.issue}</span>
               </div>
             )}
 

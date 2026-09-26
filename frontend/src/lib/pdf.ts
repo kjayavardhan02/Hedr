@@ -772,6 +772,38 @@ function recommendations(doc: jsPDF, y: number, data: PdfReportData): number {
   return y;
 }
 
+/** Origin comparison details for headers where canonicalization changed a value
+ * (CORS): what was expected, what came back, what each became, and why it
+ * matched or not. Only shown when normalization actually happened. */
+function originComparisons(doc: jsPDF, y: number, data: PdfReportData): number {
+  const items = data.findings.flatMap((f) =>
+    f.checks.filter((c) => c.reason && (c.evidence || c.normalized_expected)).map((check) => ({ finding: f, check }))
+  );
+  if (items.length === 0) return y;
+  const textW = CONTENT_W - 28 - 70;
+  y = ensureSpace(doc, y, 90);
+  smallHeading(doc, MARGIN_X, y, "Origin comparison details");
+  y += 12;
+  for (const { finding, check } of items) {
+    const normalizedActual = (check.evidence ?? "").replace(/^Normalized:\s*/, "") || (check.actual ?? "");
+    const passed = check.status === "PASS";
+    y = recommendationCard(doc, y, finding.header, check.status, STATUS_COLOR[check.status] ?? MUTED, [
+      { label: "Expected", lines: wrap(doc, finding.policy_expected ?? "-", textW) },
+      { label: "Actual", lines: wrap(doc, finding.actual_value ?? "(header not present)", textW) },
+      {
+        label: "Normalized",
+        lines: [
+          ...wrap(doc, `Policy:  ${check.normalized_expected ?? finding.policy_expected ?? "-"}`, textW),
+          ...wrap(doc, `Response:  ${normalizedActual}`, textW),
+        ],
+      },
+      { label: "Result", lines: [passed ? "PASS" : "FAIL"] },
+      { label: "Reason", lines: wrap(doc, check.reason ?? "", textW) },
+    ]);
+  }
+  return y + 4;
+}
+
 // ---- Content-Security-Policy ------------------------------------------------------------
 
 const RISKY_SOURCES = ["'unsafe-inline'", "'unsafe-eval'", "*", "http:"];
@@ -972,6 +1004,7 @@ export function downloadReportPdf(data: PdfReportData, options: PdfOptions = {})
       didParseCell: statusColorHook(1),
     });
     y = finalY(doc) + 22;
+    y = originComparisons(doc, y, data);
   }
 
   y = recommendations(doc, y, data);

@@ -147,3 +147,51 @@ class TestScannerVersion:
         by_header = {f["header"]: f for f in report["findings"]}
         assert by_header["X-Frame-Options"]["advisories"][0]["status"] == "WARNING"
         assert "must-revalidate" in by_header["Cache-Control"]["issue"]
+
+
+class TestCorsReason:
+    H = "Access-Control-Allow-Origin"
+
+    def test_pass_after_canonicalization_explains_which_rules_applied(self):
+        (check,) = finding(self.H, "https://EXAMPLE.COM", "https://EXAMPLE.COM:443").checks
+        assert check.status == Status.PASS
+        assert check.normalized_expected == "https://example.com"
+        assert check.evidence == "Normalized: https://example.com"
+        assert check.reason.startswith("Origins match after canonicalization")
+        assert "scheme and host lower-cased" in check.reason and "default port :443 removed" in check.reason
+
+    def test_trailing_slash_is_named(self):
+        (check,) = finding(self.H, "https://example.com", "https://example.com/").checks
+        assert "trailing slash removed" in check.reason
+
+    def test_pass_without_normalization_has_no_reason(self):
+        (check,) = finding(self.H, "https://example.com", "https://example.com").checks
+        assert check.reason is None and check.normalized_expected is None and check.evidence is None
+
+    def test_policy_side_normalization_is_reported_even_when_the_response_is_clean(self):
+        (check,) = finding(self.H, "https://EXAMPLE.COM:443", "https://example.com").checks
+        assert check.status == Status.PASS
+        assert check.normalized_expected == "https://example.com"
+        assert check.evidence is None  # the response value itself was already canonical
+
+    def test_different_port_is_a_mismatch_with_a_neutral_reason(self):
+        (check,) = finding(self.H, "https://example.com", "https://example.com:8443").checks
+        assert check.status == Status.FAIL
+        assert check.reason.startswith("Different port")
+        assert "vulnerab" not in check.reason.lower()
+        assert ":8443" in check.reason and ":443" in check.reason
+
+    def test_different_scheme_reason(self):
+        (check,) = finding(self.H, "https://example.com", "http://example.com").checks
+        assert check.reason.startswith("Different scheme")
+
+    def test_unrelated_origin_reason(self):
+        (check,) = finding(self.H, "https://a.com", "https://b.com").checks
+        assert "differs from every allowed origin" in check.reason
+
+    def test_fail_after_normalization_still_reports_both_normalized_values(self):
+        (check,) = finding(self.H, "https://EXAMPLE.COM", "HTTPS://EXAMPLE.COM:8443").checks
+        assert check.status == Status.FAIL
+        assert check.evidence == "Normalized: https://example.com:8443"
+        assert check.normalized_expected == "https://example.com"
+        assert check.reason.startswith("Different port")

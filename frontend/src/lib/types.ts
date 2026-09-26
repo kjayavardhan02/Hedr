@@ -82,6 +82,10 @@ export interface CheckResult {
   severity: "low" | "medium" | "high" | "critical" | "info" | null;
   directive: string | null;
   evidence: string | null;
+  /** CORS origin checks: the policy origin(s) after canonicalization, when it changed something. */
+  normalized_expected?: string | null;
+  /** CORS origin checks: plain-language reason for the verdict. */
+  reason?: string | null;
 }
 
 export type SeverityLevel = "low" | "medium" | "high" | "critical" | "info";

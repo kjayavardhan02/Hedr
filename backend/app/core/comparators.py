@@ -600,6 +600,58 @@ def origins_match(policy_origin: str, header_origin: str) -> bool:
     return normalize_origin(policy_origin) == normalize_origin(header_origin)
 
 
+def describe_normalization(raw: str, normalized: str) -> list[str]:
+    """Which canonicalization rules changed `raw` into `normalized`, for reports."""
+    text = normalize_ws(raw)
+    if text == normalized:
+        return []
+    rules: list[str] = []
+    match = re.match(r"^([A-Za-z][A-Za-z0-9+.\-]*)://([^/?#]*)", text)
+    if match:
+        scheme, authority = match.group(1), match.group(2)
+        host = re.sub(r":\d*$", "", authority)
+        if scheme != scheme.lower() or host != host.lower():
+            rules.append("scheme and host lower-cased")
+        port_match = re.search(r":(\d+)$", authority)
+        if port_match and f":{port_match.group(1)}" not in normalized.split("//", 1)[-1]:
+            rules.append(f"default port :{port_match.group(1)} removed")
+    if text.endswith("/") and not normalized.endswith("/"):
+        rules.append("trailing slash removed")
+    return rules
+
+
+def _origin_parts(origin: str) -> tuple[str, str, int | None] | None:
+    """(scheme, host, effective port) of an already-normalized origin."""
+    try:
+        parts = urlsplit(origin)
+        port = parts.port
+    except ValueError:
+        return None
+    if not parts.scheme or not parts.hostname:
+        return None
+    return parts.scheme, parts.hostname, port if port is not None else _DEFAULT_PORTS.get(parts.scheme)
+
+
+def _origin_mismatch_reason(actual_origin: str, allowed: list[str]) -> str:
+    """Why an origin still differs from the policy after canonicalization. A
+    different port is a different origin - a mismatch, not by itself a vulnerability."""
+    actual_parts = _origin_parts(actual_origin)
+    if actual_parts:
+        scheme, host, port = actual_parts
+        for candidate in allowed:
+            cand = _origin_parts(candidate)
+            if cand and cand[1] == host and cand[0] == scheme and cand[2] != port:
+                return (
+                    f"Different port: the response uses :{port} but the policy allows :{cand[2]}. "
+                    "The port is part of the origin, so these are different origins."
+                )
+        for candidate in allowed:
+            cand = _origin_parts(candidate)
+            if cand and cand[1] == host and cand[0] != scheme:
+                return f"Different scheme: the response uses {scheme} but the policy allows {cand[0]}."
+    return "The origin differs from every allowed origin, even after canonicalization."
+
+
 def origin_comparator(header: str, expected: str, actual: str | None) -> ComparisonOutcome:
     allowed = [normalize_origin(v) for v in expected.split("|") if v.strip()]
 
@@ -636,15 +688,30 @@ def origin_comparator(header: str, expected: str, actual: str | None) -> Compari
             actual=actual,
         )
     else:
-        ok = any(origins_match(candidate, actual) for candidate in allowed)
-        if ok and actual.strip() != actual_origin:
+        raw_allowed = [v.strip() for v in expected.split("|") if v.strip()]
+        matched_index = next((i for i, cand in enumerate(allowed) if origins_match(cand, actual)), None)
+        ok = matched_index is not None
+        actual_changed = normalize_ws(actual) != actual_origin
+        expected_changed = any(normalize_ws(raw) != norm for raw, norm in zip(raw_allowed, allowed))
+        normalized = actual_changed or expected_changed
+
+        if ok and normalized:
             # Don't hide that normalisation happened - informational, not a finding.
             description = (
                 "Origin matches policy after canonicalization "
                 f"({normalize_ws(actual)} \u2192 {actual_origin})."
             )
+            rules = describe_normalization(actual, actual_origin)
+            for rule in describe_normalization(raw_allowed[matched_index], allowed[matched_index]):
+                if rule not in rules:
+                    rules.append(rule)
+            reason = "Origins match after canonicalization" + (f": {'; '.join(rules)}." if rules else ".")
+        elif ok:
+            description = f"Origin must be one of: {', '.join(allowed)}."
+            reason = None
         else:
             description = f"Origin must be one of: {', '.join(allowed)}."
+            reason = _origin_mismatch_reason(actual_origin, allowed)
         check = CheckResult(
             name="origin-match",
             description=description,
@@ -653,7 +720,9 @@ def origin_comparator(header: str, expected: str, actual: str | None) -> Compari
             actual=actual,
             # Keep the raw value visible; show what it was normalized to when
             # normalization changed it, so a reader can see why it matched.
-            evidence=f"Normalized: {actual_origin}" if normalize_ws(actual) != actual_origin else None,
+            evidence=f"Normalized: {actual_origin}" if actual_changed else None,
+            normalized_expected=" | ".join(allowed) if normalized else None,
+            reason=reason,
         )
     return ComparisonOutcome(check.status, [check])
 

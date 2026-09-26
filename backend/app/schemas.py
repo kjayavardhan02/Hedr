@@ -193,6 +193,11 @@ class CheckResult(BaseModel):
     severity: Literal["low", "medium", "high", "critical", "info"] | None = None
     directive: str | None = None
     evidence: str | None = None
+    # CORS origin checks only: the policy's origin(s) after canonicalization
+    # (set when normalization changed either side), and a plain-language reason
+    # for the verdict. Both stay None for every other check.
+    normalized_expected: str | None = None
+    reason: str | None = None
 
 
 class Advisory(BaseModel):
