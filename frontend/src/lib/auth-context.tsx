@@ -9,6 +9,7 @@ import {
 } from "react";
 import { AUTH_EVENT, api } from "./api";
 import type { User } from "./types";
+import { clearSavedFilters } from "./savedFilters";
 
 interface AuthContextValue {
   user: User | null;
@@ -69,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Even if the request fails, drop the local session state below.
     }
+    clearSavedFilters();
     setUser(null);
   }, []);
 

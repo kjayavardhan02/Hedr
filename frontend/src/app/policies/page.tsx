@@ -9,6 +9,7 @@ import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
 import { describeDateRange, inDateRange } from "@/lib/filters";
+import { usePersistedState } from "@/lib/usePersistedState";
 import { Highlight } from "@/components/Highlight";
 
 type PolicyFilterField = "name" | "date" | "type";
@@ -71,11 +72,11 @@ export default function PoliciesPage() {
   // Filters are independent and combine (AND): a policy must match every active
   // one. `filterField` is only which tab is being edited.
   const [filterField, setFilterField] = useState<PolicyFilterField>("name");
-  const [nameText, setNameText] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [typeFilter, setTypeFilter] = useState<PolicyContentFilter>("");
-  const [categoryFilter, setCategoryFilter] = useState<PolicyCategoryFilter>("");
+  const [nameText, setNameText] = usePersistedState("policies", "name", "");
+  const [dateFrom, setDateFrom] = usePersistedState("policies", "dateFrom", "");
+  const [dateTo, setDateTo] = usePersistedState("policies", "dateTo", "");
+  const [typeFilter, setTypeFilter] = usePersistedState<PolicyContentFilter>("policies", "content", "");
+  const [categoryFilter, setCategoryFilter] = usePersistedState<PolicyCategoryFilter>("policies", "category", "");
   const hasName = nameText.trim() !== "";
   const hasDate = Boolean(dateFrom || dateTo);
   const hasType = typeFilter !== "";

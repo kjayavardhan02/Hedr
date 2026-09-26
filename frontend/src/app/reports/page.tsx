@@ -12,6 +12,7 @@ import { ExportDropdown } from "@/components/ExportDropdown";
 import { Highlight } from "@/components/Highlight";
 import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
 import { describeDateRange, inDateRange } from "@/lib/filters";
+import { usePersistedState } from "@/lib/usePersistedState";
 import { downloadReportsCsv } from "@/lib/exportCsv";
 import { downloadReportsJson } from "@/lib/exportJson";
 
@@ -198,11 +199,11 @@ export default function ReportsPage() {
   // Filters are independent and combine (AND): a report must match every active
   // one. `filterField` is only which tab is being edited.
   const [filterField, setFilterField] = useState<FilterField>("target");
-  const [targetText, setTargetText] = useState("");
-  const [policyText, setPolicyText] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [grades, setGrades] = useState<string[]>([]);
+  const [targetText, setTargetText] = usePersistedState("reports", "target", "");
+  const [policyText, setPolicyText] = usePersistedState("reports", "policy", "");
+  const [dateFrom, setDateFrom] = usePersistedState("reports", "dateFrom", "");
+  const [dateTo, setDateTo] = usePersistedState("reports", "dateTo", "");
+  const [grades, setGrades] = usePersistedState<string[]>("reports", "grades", []);
   // The inputs stay instant; the (larger) list re-filters at lower priority.
   const deferredTarget = useDeferredValue(targetText);
   const deferredPolicy = useDeferredValue(policyText);
