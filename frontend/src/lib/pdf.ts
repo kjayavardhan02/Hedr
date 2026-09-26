@@ -167,6 +167,16 @@ function decoratePages(doc: jsPDF, data: PdfReportData): void {
 }
 
 const SECTION_GAP = 34; // space (with a divider line) between one section and the next
+const BLOCK_GAP = 28; // the same break, for blocks inside a section (page 1, CSP)
+
+/** A light divider line with space around it - the break between two blocks. */
+function blockBreak(doc: jsPDF, y: number): number {
+  y = ensureSpace(doc, y, BLOCK_GAP + 60);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.6);
+  doc.line(MARGIN_X, y + BLOCK_GAP / 2 - 4, PAGE_W - MARGIN_X, y + BLOCK_GAP / 2 - 4);
+  return y + BLOCK_GAP;
+}
 
 /**
  * Starts a section right after the previous one - after a gap and a divider
@@ -928,8 +938,8 @@ function cspSection(doc: jsPDF, y: number, csp: CSPFinding): number {
   statTile(doc, at(1), y, tileW, "Policy compliance", `${csp.policy_checks_passed} / ${csp.policy_checks_total}`, tone(csp.policy_checks_passed, csp.policy_checks_total));
   statTile(doc, at(2), y, tileW, "Best practice", `${csp.best_practice_passed} / ${csp.best_practice_total}`, tone(csp.best_practice_passed, csp.best_practice_total));
   y += 46 + 20;
-  y = cspReceived(doc, y, csp);
-  y = cspFindings(doc, y, csp);
+  y = cspReceived(doc, blockBreak(doc, y - 6) + 4, csp);
+  y = cspFindings(doc, blockBreak(doc, y - 10) + 4, csp);
 
   y = beginSection(
     doc,
@@ -971,8 +981,8 @@ export function downloadReportPdf(data: PdfReportData, options: PdfOptions = {})
   y += 8;
   const issues = [...headerIssues(data.findings), ...cspIssues(data.csp_finding)];
   y = executiveSummary(doc, y + 12, data);
-  y = severityBreakdown(doc, y + 18, issues);
-  y = keyFindings(doc, y + 8, issues, Boolean(data.csp_finding));
+  y = severityBreakdown(doc, blockBreak(doc, y) + 12, issues);
+  y = keyFindings(doc, blockBreak(doc, y) + 12, issues, Boolean(data.csp_finding));
   y = policySection(doc, y, buildPolicyView(data, options.policy), options.policyNote);
 
   // Evidence: each header against its expected value.
