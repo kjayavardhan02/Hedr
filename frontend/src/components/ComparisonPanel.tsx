@@ -25,7 +25,7 @@ const REASON_TEXT: Record<string, { title: string; body: string }> = {
   },
   raw_default_target: {
     title: "Comparison unavailable.",
-    body: "Provide a target name for raw HTTP response scans to enable comparison with previous scans.",
+    body: "This scan has no Target URL and was left at the default name, so it has no stable identity to compare with.",
   },
   ad_hoc_policy: {
     title: "Comparison unavailable for this scan.",

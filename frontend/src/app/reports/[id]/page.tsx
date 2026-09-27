@@ -9,6 +9,7 @@ import { ScoreHero } from "@/components/ScoreHero";
 import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
+import { ScoreHistoryPanel } from "@/components/ScoreHistoryPanel";
 import { BackLink } from "@/components/BackLink";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
@@ -109,6 +110,7 @@ export default function ReportDetailPage() {
         <ScoreHero result={report} tinted />
         <ComparisonPanel reportId={id} />
       </div>
+      <ScoreHistoryPanel reportId={id} />
 
       <div className="panel fade-in-up" style={{ marginTop: 16, animationDelay: "40ms" }}>
         <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16 }}>Findings</h3>

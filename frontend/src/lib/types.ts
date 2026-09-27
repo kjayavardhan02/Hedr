@@ -297,6 +297,22 @@ export interface ComparisonResponse {
   changes: ComparisonChanges | null;
 }
 
+export interface TargetHistoryPoint {
+  id: string;
+  scan_number: number;
+  score: number;
+  grade: string;
+  policy_name: string;
+  policy_version: string;
+  scanned_at: string;
+}
+
+export interface TargetHistoryResponse {
+  has_history: boolean;
+  reason: "ad_hoc_policy" | "anonymous_target" | "not_enough_data" | null;
+  points: TargetHistoryPoint[];
+}
+
 export interface ScanRequestPayload {
   source: "url" | "raw";
   url?: string;

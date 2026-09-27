@@ -1043,6 +1043,40 @@ select:focus {
   }
 }
 
+/* --- Score History chart (report page) ------------------------------------ */
+
+.score-history-chart-wrap {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.score-history-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+}
+
+.score-history-axis-label {
+  font-size: 10px;
+  fill: var(--text-dim);
+}
+
+.score-history-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  background: linear-gradient(180deg, #1b1b1b, var(--panel) 40px);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 16px -6px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+}
+
 /* Summary card: tinted by outcome (green improved, red regression). */
 .cmp-card {
   --cmp-accent: var(--text-dim);

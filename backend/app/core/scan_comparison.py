@@ -29,6 +29,8 @@ from app.schemas import (
     HeaderChanged,
     HeaderRemoved,
     SeverityChange,
+    TargetHistoryPoint,
+    TargetHistoryResponse,
 )
 
 _FAIL = "FAIL"
@@ -172,6 +174,56 @@ def build_comparison_for_report(db: Session, report: models.ScanReport) -> Compa
     if previous is None:
         return ComparisonResponse(has_comparison=False, reason=_why_no_comparison(db, report))
     return compare_reports(previous, report)
+
+
+def find_target_history(db: Session, current: models.ScanReport) -> list[models.ScanReport]:
+    """Every one of the user's scans of the same target as `current` (see
+    `_target_identity`) - unlike `find_previous_comparable_report`, this spans
+    every policy version, not just the current one, and returns every match,
+    not just the immediately preceding one. Oldest first, `current` included.
+    Ad-hoc scans and raw scans with no stable identity are never candidates,
+    same rule as comparison."""
+    if current.policy_id is None or is_anonymous_raw_target(current):
+        return []
+    candidates = (
+        db.query(models.ScanReport)
+        .filter(
+            models.ScanReport.owner_id == current.owner_id,
+            models.ScanReport.policy_id.isnot(None),
+        )
+        .order_by(models.ScanReport.scanned_at.asc(), models.ScanReport.id.asc())
+        .all()
+    )
+    return [r for r in candidates if not is_anonymous_raw_target(r) and _same_target(current, r)]
+
+
+def build_target_history(db: Session, report: models.ScanReport) -> TargetHistoryResponse:
+    """The data behind the report page's Score History chart: this target's
+    score across every scan, spanning policy versions (the frontend marks
+    where the policy version changes rather than hiding those scans)."""
+    if report.policy_id is None:
+        return TargetHistoryResponse(has_history=False, reason="ad_hoc_policy")
+    if is_anonymous_raw_target(report):
+        return TargetHistoryResponse(has_history=False, reason="anonymous_target")
+
+    points = [
+        TargetHistoryPoint(
+            id=r.id,
+            scan_number=r.scan_number,
+            score=r.score,
+            grade=r.grade,
+            policy_name=r.policy_name,
+            policy_version=r.policy_version,
+            scanned_at=r.scanned_at,
+        )
+        for r in find_target_history(db, report)
+    ]
+    if len(points) < 2:
+        # A single scan has nothing to trend against yet - still hand back
+        # the one point so the frontend can say "not enough history yet"
+        # instead of pretending this scan doesn't exist.
+        return TargetHistoryResponse(has_history=False, reason="not_enough_data", points=points)
+    return TargetHistoryResponse(has_history=True, points=points)
 
 
 def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> ComparisonResponse:

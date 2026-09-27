@@ -12,6 +12,7 @@ import type {
   ScanReportSummary,
   ScanRequestPayload,
   ScanResult,
+  TargetHistoryResponse,
   User,
 } from "./types";
 
@@ -108,6 +109,7 @@ export const api = {
   exportReports: (ids: string[]) =>
     request<ScanReport[]>("/api/reports/export", { method: "POST", body: JSON.stringify({ ids }) }),
   getReportComparison: (id: string) => request<ComparisonResponse>(`/api/reports/${id}/comparison`),
+  getReportHistory: (id: string) => request<TargetHistoryResponse>(`/api/reports/${id}/history`),
   deleteReport: (id: string) => request<void>(`/api/reports/${id}`, { method: "DELETE" }),
   getDashboardSummary: () => request<DashboardSummary>("/api/dashboard/summary"),
 };

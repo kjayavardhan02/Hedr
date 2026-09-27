@@ -646,6 +646,106 @@ class TestTargetMatchingRules:
         assert scan_comparison.build_comparison_for_report(self.db, current).reason == "previous_report_unavailable"
 
 
+class TestTargetHistory:
+    @pytest.fixture(autouse=True)
+    def _setup(self, client):
+        self.db = SessionLocal()
+        self.owner_id = f"owner-{uuid.uuid4().hex}"
+        yield
+        self.db.close()
+
+    def _save(self, **overrides):
+        report = _report(owner_id=self.owner_id, **overrides)
+        self.db.add(report)
+        self.db.commit()
+        return report
+
+    def test_ad_hoc_report_has_no_history(self):
+        report = self._save(policy_id=None)
+        result = scan_comparison.build_target_history(self.db, report)
+        assert result.has_history is False
+        assert result.reason == "ad_hoc_policy"
+        assert result.points == []
+
+    def test_anonymous_raw_target_has_no_history(self):
+        report = self._save(target="HTTP Response Scan")
+        result = scan_comparison.build_target_history(self.db, report)
+        assert result.has_history is False
+        assert result.reason == "anonymous_target"
+        assert result.points == []
+
+    def test_a_single_scan_is_not_enough_but_is_still_returned(self):
+        report = self._save()
+        result = scan_comparison.build_target_history(self.db, report)
+        assert result.has_history is False
+        assert result.reason == "not_enough_data"
+        assert [p.id for p in result.points] == [report.id]
+
+    def test_history_spans_policy_versions_oldest_first(self):
+        now = datetime.now(timezone.utc)
+        first = self._save(policy_version="v1", score=50.0, scanned_at=now - timedelta(days=2))
+        second = self._save(policy_version="v1", score=70.0, scanned_at=now - timedelta(days=1))
+        third = self._save(policy_version="v2", score=90.0, scanned_at=now)
+
+        result = scan_comparison.build_target_history(self.db, third)
+
+        assert result.has_history is True
+        assert result.reason is None
+        assert [p.id for p in result.points] == [first.id, second.id, third.id]
+        assert [p.score for p in result.points] == [50.0, 70.0, 90.0]
+        assert [p.policy_version for p in result.points] == ["v1", "v1", "v2"]
+
+    def test_history_is_scoped_to_owner(self):
+        now = datetime.now(timezone.utc)
+        self._save(scanned_at=now - timedelta(hours=1))
+        current = self._save(scanned_at=now)
+        other_owner_report = _report(owner_id="someone-else", scanned_at=now - timedelta(minutes=30))
+        self.db.add(other_owner_report)
+        self.db.commit()
+
+        result = scan_comparison.build_target_history(self.db, current)
+
+        assert other_owner_report.id not in [p.id for p in result.points]
+
+    def test_different_targets_do_not_mix(self):
+        now = datetime.now(timezone.utc)
+        self._save(target="https://a.example.com", scanned_at=now - timedelta(hours=1))
+        current = self._save(target="https://b.example.com", scanned_at=now)
+
+        result = scan_comparison.build_target_history(self.db, current)
+
+        assert result.has_history is False
+        assert [p.id for p in result.points] == [current.id]
+
+    def test_a_raw_scan_with_a_target_url_shares_history_with_a_real_url_scan(self):
+        now = datetime.now(timezone.utc)
+        fetched = _report(owner_id=self.owner_id, target="https://example.com/", scanned_at=now - timedelta(hours=1))
+        fetched.source = "url"
+        self.db.add(fetched)
+        self.db.commit()
+        current = self._save(
+            target="Pasted from VPN", target_url="https://example.com", scanned_at=now
+        )
+
+        result = scan_comparison.build_target_history(self.db, current)
+
+        assert result.has_history is True
+        assert [p.id for p in result.points] == [fetched.id, current.id]
+
+    def test_find_target_history_excludes_anonymous_scans_even_as_candidates(self):
+        now = datetime.now(timezone.utc)
+        self._save(target="HTTP Response Scan", scanned_at=now - timedelta(hours=1))
+        current = self._save(target="HTTP Response Scan", scanned_at=now)
+
+        # current is itself anonymous, so it has no history at all -
+        # covered by test_anonymous_raw_target_has_no_history. This
+        # additionally checks the lower-level helper never treats two
+        # anonymous scans as sharing history via find_target_history directly
+        # (e.g. if called on a report that isn't itself anonymous).
+        third = self._save(target="Named Target", scanned_at=now + timedelta(hours=1))
+        assert scan_comparison.find_target_history(self.db, third) == [third]
+
+
 class TestSemanticChangeDetection:
     def _headers(self, name, value):
         return [_header_finding(header=name, actual_value=value, status="PASS")]

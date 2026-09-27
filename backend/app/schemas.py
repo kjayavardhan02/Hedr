@@ -468,6 +468,36 @@ class ComparisonResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Target score history (the "Score History" chart on a report page)
+#
+# Same target-identity rule as comparison (app.core.scan_comparison), but
+# spans every scan of that target - not just the immediately preceding one -
+# across policy versions, oldest first.
+# ---------------------------------------------------------------------------
+
+
+class TargetHistoryPoint(BaseModel):
+    id: str
+    scan_number: int
+    score: float
+    grade: str
+    policy_name: str
+    policy_version: str
+    scanned_at: datetime
+
+
+class TargetHistoryResponse(BaseModel):
+    has_history: bool
+    # Populated only when has_history is False - explains why, so the
+    # frontend can show the right empty-state copy.
+    reason: Literal["ad_hoc_policy", "anonymous_target", "not_enough_data"] | None = None
+    # Present even when has_history is False, so a single existing scan can
+    # still be acknowledged ("not enough history yet") rather than shown as
+    # if it never happened.
+    points: list[TargetHistoryPoint] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
 # Dashboard summary
 # ---------------------------------------------------------------------------
 

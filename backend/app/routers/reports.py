@@ -5,7 +5,13 @@ from app import models
 from app.core import scan_comparison
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.schemas import ComparisonResponse, ReportsExportRequest, ScanReportOut, ScanReportSummary
+from app.schemas import (
+    ComparisonResponse,
+    ReportsExportRequest,
+    ScanReportOut,
+    ScanReportSummary,
+    TargetHistoryResponse,
+)
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
@@ -68,6 +74,18 @@ def get_report_comparison(
     if report is None or report.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Report not found.")
     return scan_comparison.build_comparison_for_report(db, report)
+
+
+@router.get("/{report_id}/history", response_model=TargetHistoryResponse)
+def get_target_history(
+    report_id: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    report = db.get(models.ScanReport, report_id)
+    if report is None or report.owner_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Report not found.")
+    return scan_comparison.build_target_history(db, report)
 
 
 @router.delete("/{report_id}", status_code=204)

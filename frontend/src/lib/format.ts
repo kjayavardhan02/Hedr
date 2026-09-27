@@ -30,6 +30,13 @@ export function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/** Short absolute date with no year or time ("Sep 18") - for axis labels and
+ * other tight spaces where `timeAgo`'s relative form would be ambiguous once
+ * more than one is shown side by side. */
+export function formatShortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 /** Full absolute date + time ("Sep 18, 2026, 3:45 PM"), matching the format
  * already used on the Reports list for an exact, unambiguous timestamp. */
 export function formatDateTime(iso: string): string {

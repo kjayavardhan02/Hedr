@@ -7,7 +7,7 @@ const STROKE = 8;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-function gradeColor(grade: string) {
+export function gradeColor(grade: string) {
   switch (grade) {
     case "A":
     case "B":
