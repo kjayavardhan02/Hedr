@@ -513,6 +513,24 @@ select:focus {
   box-shadow: 0 1px 4px rgba(255, 122, 26, 0.35);
 }
 
+/* A tab pair with longer labels (e.g. "Build ad-hoc policy") no longer fits
+   on one line at phone widths and was overflowing into a native horizontal
+   scrollbar. Stretch tabs to fill the row and let their text wrap instead. */
+@media (max-width: 480px) {
+  .tabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 7px 6px;
+    white-space: normal;
+    line-height: 1.25;
+  }
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
