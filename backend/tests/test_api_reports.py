@@ -37,7 +37,7 @@ POLICY_WITH_CSP = {
 def run_scan(client, policy=POLICY_WITH_CSP, raw_response=RAW_RESPONSE_WITH_EXTRA_HEADERS):
     resp = client.post(
         "/api/scan",
-        json={"source": "raw", "raw_response": raw_response, "policy": policy},
+        json={"source": "raw", "raw_response": raw_response, "target_url": "https://example.com", "policy": policy},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
@@ -163,6 +163,7 @@ class TestScanCreatesReport:
             json={
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "target_url": "https://example.com",
                 "policy_id": policy_id,
             },
         )
@@ -187,6 +188,7 @@ class TestScanCreatesReport:
             json={
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "target_url": "https://example.com",
                 "policy_id": policy_id,
             },
         )
@@ -218,6 +220,7 @@ class TestScanCreatesReport:
             json={
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "target_url": "https://example.com",
                 "policy_id": policy_id,
             },
         )
@@ -240,6 +243,7 @@ class TestScanCreatesReport:
             json={
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: SAMEORIGIN\n\n",
+                "target_url": "https://example.com",
                 "policy_id": policy_id,
             },
         )

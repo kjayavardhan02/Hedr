@@ -5,6 +5,7 @@ def _scan(client, name):
             "source": "raw",
             "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
             "target_name": name,
+            "target_url": "https://example.com",
             "policy": {
                 "name": "p",
                 "description": "",

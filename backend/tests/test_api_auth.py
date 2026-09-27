@@ -238,6 +238,7 @@ class TestOwnershipIsolation:
             json={
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
+                "target_url": "https://example.com",
                 "policy_id": created["id"],
             },
         )

@@ -115,6 +115,12 @@ class ScanReport(Base):
     policy_version: Mapped[str] = mapped_column(String, nullable=False, default="v1")
     source: Mapped[str] = mapped_column(String, nullable=False)
     target: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Raw-response scans only: an optional URL the user says this response
+    # came from. Never fetched - it exists purely so a pasted response can be
+    # matched, for comparison, against other scans of the same address
+    # (including a real URL-mode scan of it). Null for URL-mode scans, whose
+    # `target` is already the fetched URL, and for raw scans given no URL.
+    target_url: Mapped[str | None] = mapped_column(String, nullable=True)
     fetched_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     grade: Mapped[str] = mapped_column(String, nullable=False)

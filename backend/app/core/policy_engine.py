@@ -305,6 +305,7 @@ def run_scan(
     target: str | None,
     fetched_status_code: int | None,
     csp_policy: CSPPolicy | None = None,
+    target_url: str | None = None,
 ) -> ScanResult:
     findings: list[HeaderFinding] = []
     earned_total = 0.0
@@ -333,6 +334,7 @@ def run_scan(
         id=str(uuid.uuid4()),
         source=source,
         target=target,
+        target_url=target_url,
         fetched_status_code=fetched_status_code,
         policy_name=policy_name,
         score=score,

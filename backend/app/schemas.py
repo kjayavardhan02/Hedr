@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
@@ -169,8 +170,25 @@ class ScanRequest(BaseModel):
     # target with. Optional - defaults to "HTTP Response Scan" if omitted.
     # Kept short: it is shown in tables and cards across the app.
     target_name: str | None = Field(default=None, max_length=50)
+    # Required for source=raw (enforced in the router, not here, since it's
+    # ignored - not required - for source=url): the URL this response is said
+    # to come from. Never fetched - purely an identity for matching this scan,
+    # in comparisons, against other scans (raw or URL-mode) of the same
+    # address. Ignored for source=url, whose target is already the fetched URL.
+    target_url: str | None = Field(default=None, max_length=2000)
     policy_id: str | None = None
     policy: PolicyCreate | None = None
+
+    @field_validator("target_url")
+    @classmethod
+    def _target_url_must_look_like_a_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        candidate = value.strip()
+        parsed = urlsplit(candidate)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise ValueError("Target URL must be a full http:// or https:// URL, e.g. https://example.com.")
+        return candidate
 
 
 class Status(str, Enum):
@@ -251,6 +269,8 @@ class ScanResult(BaseModel):
     id: str
     source: ScanSource
     target: str | None
+    # Set only for a raw-response scan given a Target URL; null otherwise.
+    target_url: str | None = None
     fetched_status_code: int | None = None
     policy_name: str
     score: float
@@ -284,6 +304,7 @@ class ScanReportSummary(BaseModel):
     policy_version: str
     source: ScanSource
     target: str | None
+    target_url: str | None = None
     headers_evaluated: int
     score: float
     grade: str
@@ -307,6 +328,7 @@ class ScanReportOut(BaseModel):
     policy_version: str
     source: ScanSource
     target: str | None
+    target_url: str | None = None
     fetched_status_code: int | None = None
     headers_evaluated: int
     score: float
@@ -332,6 +354,7 @@ class ComparisonReportRef(BaseModel):
     id: str
     scan_number: int
     target: str | None = None
+    target_url: str | None = None
     score: float
     grade: str
     scanned_at: datetime

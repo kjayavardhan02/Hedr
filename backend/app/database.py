@@ -38,3 +38,6 @@ def ensure_schema(bind=engine) -> None:
     if "scanner_version" not in existing:
         with bind.begin() as conn:
             conn.execute(text("ALTER TABLE scan_reports ADD COLUMN scanner_version VARCHAR"))
+    if "target_url" not in existing:
+        with bind.begin() as conn:
+            conn.execute(text("ALTER TABLE scan_reports ADD COLUMN target_url VARCHAR"))

@@ -135,6 +135,8 @@ export interface ScanResult {
   id: string;
   source: "url" | "raw";
   target: string | null;
+  /** Set only for a raw-response scan given a Target URL; null otherwise. */
+  target_url?: string | null;
   fetched_status_code: number | null;
   policy_name: string;
   score: number;
@@ -157,6 +159,7 @@ export interface ScanReportSummary {
   policy_version: string;
   source: "url" | "raw";
   target: string | null;
+  target_url?: string | null;
   headers_evaluated: number;
   score: number;
   grade: string;
@@ -171,6 +174,7 @@ export interface ScanReport {
   policy_version: string;
   source: "url" | "raw";
   target: string | null;
+  target_url?: string | null;
   fetched_status_code: number | null;
   headers_evaluated: number;
   score: number;
@@ -185,6 +189,7 @@ export interface ComparisonReportRef {
   id: string;
   scan_number: number;
   target: string | null;
+  target_url?: string | null;
   score: number;
   grade: string;
   scanned_at: string;
@@ -297,6 +302,7 @@ export interface ScanRequestPayload {
   url?: string;
   raw_response?: string;
   target_name?: string;
+  target_url?: string;
   policy_id?: string;
   policy?: PolicyCreatePayload;
 }

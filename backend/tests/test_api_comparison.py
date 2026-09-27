@@ -17,6 +17,12 @@ COMPARISON_POLICY_HEADERS = [
     {"header_name": "Referrer-Policy", "expected_value": "", "required": True},
 ]
 
+# Shared default for tests where every scan represents the same one target -
+# a Target URL is required for every raw scan now, so this is what
+# establishes "same target", not the (still-optional) target_name.
+TARGET_URL = "https://example.com/comparison-test"
+OTHER_TARGET_URL = "https://other.example.com/comparison-test"
+
 
 def make_policy(client, name, headers, description=""):
     resp = client.post(
@@ -27,7 +33,7 @@ def make_policy(client, name, headers, description=""):
     return resp.json()
 
 
-def run_scan_with_policy_id(client, policy_id, raw_response, target_name):
+def run_scan_with_policy_id(client, policy_id, raw_response, target_name, target_url=TARGET_URL):
     resp = client.post(
         "/api/scan",
         json={
@@ -35,13 +41,14 @@ def run_scan_with_policy_id(client, policy_id, raw_response, target_name):
             "raw_response": raw_response,
             "policy_id": policy_id,
             "target_name": target_name,
+            "target_url": target_url,
         },
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
 
 
-def run_ad_hoc_scan(client, raw_response, target_name):
+def run_ad_hoc_scan(client, raw_response, target_name, target_url=TARGET_URL):
     resp = client.post(
         "/api/scan",
         json={
@@ -49,6 +56,7 @@ def run_ad_hoc_scan(client, raw_response, target_name):
             "raw_response": raw_response,
             "policy": {"name": "Ad hoc", "description": "", "headers": COMPARISON_POLICY_HEADERS},
             "target_name": target_name,
+            "target_url": target_url,
         },
     )
     assert resp.status_code == 200, resp.text
@@ -150,41 +158,12 @@ class TestComparisonEmptyStates:
         assert data["has_comparison"] is False
         assert data["reason"] == "policy_version_changed"
 
-
-class TestComparisonRawDefaultTarget:
-    def test_unnamed_raw_scans_are_never_compared(self, auth_client):
-        client, _ = auth_client
-        policy = make_policy(client, "Unnamed Policy", COMPARISON_POLICY_HEADERS)
-        for raw in (RAW_V1, RAW_V2_CHANGED_AND_ADDED):
-            resp = client.post(
-                "/api/scan",
-                json={"source": "raw", "raw_response": raw, "policy_id": policy["id"]},
-            )
-            assert resp.status_code == 200, resp.text
-
-        latest_report_id = get_report_id_for_scan_number(client, 2)
-        data = client.get(f"/api/reports/{latest_report_id}/comparison").json()
-
-        assert data["has_comparison"] is False
-        assert data["reason"] == "raw_default_target"
-
-    def test_named_raw_scans_still_compare(self, auth_client):
-        client, _ = auth_client
-        policy = make_policy(client, "Named Policy", COMPARISON_POLICY_HEADERS)
-        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API")
-        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "Production API")
-
-        latest_report_id = get_report_id_for_scan_number(client, 2)
-        data = client.get(f"/api/reports/{latest_report_id}/comparison").json()
-
-        assert data["has_comparison"] is True
-
-    def test_same_name_under_different_policies_is_not_compared(self, auth_client):
+    def test_different_policies_on_the_same_target_are_not_compared(self, auth_client):
         client, _ = auth_client
         basic = make_policy(client, "Basic", COMPARISON_POLICY_HEADERS)
         strict = make_policy(client, "Strict", COMPARISON_POLICY_HEADERS)
-        run_scan_with_policy_id(client, basic["id"], RAW_V1, "Production API")
-        run_scan_with_policy_id(client, strict["id"], RAW_V2_CHANGED_AND_ADDED, "Production API")
+        run_scan_with_policy_id(client, basic["id"], RAW_V1, "Target A")
+        run_scan_with_policy_id(client, strict["id"], RAW_V2_CHANGED_AND_ADDED, "Target A")
 
         latest_report_id = get_report_id_for_scan_number(client, 2)
         data = client.get(f"/api/reports/{latest_report_id}/comparison").json()
@@ -194,33 +173,42 @@ class TestComparisonRawDefaultTarget:
 
 
 class TestComparisonTargetIdentity:
-    def test_names_differing_only_in_case_and_spacing_are_the_same_target(self, auth_client):
+    """The API requires a Target URL on every raw scan, and that URL - not
+    the still-optional target_name - is what establishes "same target" (see
+    scan_comparison._target_identity). Name-only matching now only applies to
+    scans saved before this validation existed, which can't be produced
+    through this API - that legacy behaviour is covered directly at the unit
+    level in test_scan_comparison.py instead."""
+
+    def test_a_blank_target_name_does_not_prevent_comparison(self, auth_client):
         client, _ = auth_client
-        policy = make_policy(client, "Names Policy", COMPARISON_POLICY_HEADERS)
-        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API")
-        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "  PRODUCTION     api ")
+        policy = make_policy(client, "Blank Name Policy", COMPARISON_POLICY_HEADERS)
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, None)
+        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, None)
 
         data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
 
         assert data["has_comparison"] is True
-        # Original spellings are kept for display.
-        assert data["previous_report"]["target"] == "Production API"
-        assert data["latest_report"]["target"] == "PRODUCTION     api"
+        # Both reports fall back to the same default display name, but that's
+        # not why they matched - the shared Target URL is.
+        assert data["previous_report"]["target"] == "HTTP Response Scan"
 
-    def test_different_names_are_different_targets(self, auth_client):
+    def test_different_target_urls_are_different_targets_even_with_the_same_name(self, auth_client):
         client, _ = auth_client
         policy = make_policy(client, "Names Policy", COMPARISON_POLICY_HEADERS)
-        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API")
-        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "Staging API")
+        run_scan_with_policy_id(client, policy["id"], RAW_V1, "Production API", target_url=TARGET_URL)
+        run_scan_with_policy_id(
+            client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "Production API", target_url=OTHER_TARGET_URL
+        )
 
         data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
 
         assert data["has_comparison"] is False
         assert data["reason"] == "no_previous_scan"
 
-    def test_duplicate_names_are_allowed_and_each_compares_with_the_one_before(self, auth_client):
+    def test_repeated_scans_of_the_same_target_each_compare_with_the_one_before(self, auth_client):
         client, _ = auth_client
-        policy = make_policy(client, "Dupes Policy", COMPARISON_POLICY_HEADERS)
+        policy = make_policy(client, "Repeats Policy", COMPARISON_POLICY_HEADERS)
         for raw in (RAW_V1, RAW_V2_CHANGED_AND_ADDED, RAW_V1):
             run_scan_with_policy_id(client, policy["id"], raw, "Production API")
 
@@ -228,17 +216,6 @@ class TestComparisonTargetIdentity:
         for number, previous in ((2, 1), (3, 2)):
             data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, number)}/comparison").json()
             assert data["previous_report"]["scan_number"] == previous
-
-    def test_anonymous_default_name_is_anonymous_however_it_is_written(self, auth_client):
-        client, _ = auth_client
-        policy = make_policy(client, "Anon Policy", COMPARISON_POLICY_HEADERS)
-        run_scan_with_policy_id(client, policy["id"], RAW_V1, "http response scan")
-        run_scan_with_policy_id(client, policy["id"], RAW_V2_CHANGED_AND_ADDED, "HTTP   Response  SCAN")
-
-        data = client.get(f"/api/reports/{get_report_id_for_scan_number(client, 2)}/comparison").json()
-
-        assert data["has_comparison"] is False
-        assert data["reason"] == "raw_default_target"
 
     def test_a_client_supplied_previous_report_id_is_ignored(self, auth_client, make_user):
         client, _ = auth_client
@@ -255,6 +232,7 @@ class TestComparisonTargetIdentity:
                 "raw_response": RAW_V1,
                 "policy_id": other_policy["id"],
                 "target_name": "Other Target",
+                "target_url": TARGET_URL,
                 "previous_report_id": victim_report_id,
             },
         )

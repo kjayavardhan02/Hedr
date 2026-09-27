@@ -22,6 +22,7 @@ def scan(
 ):
     # --- Resolve headers to analyze -----------------------------------
     target: str | None = None
+    target_url: str | None = None
     fetched_status_code: int | None = None
 
     if payload.source == ScanSource.url:
@@ -39,6 +40,12 @@ def scan(
     else:
         if not payload.raw_response or not payload.raw_response.strip():
             raise HTTPException(status_code=422, detail="raw_response is required for source=raw.")
+        if not payload.target_url:
+            raise HTTPException(
+                status_code=422,
+                detail="A Target URL is required for source=raw, so this scan can be matched to future scans "
+                "of the same target.",
+            )
         try:
             status_code, raw_headers = parse_raw_response(payload.raw_response)
         except RawResponseParseError as exc:
@@ -51,6 +58,9 @@ def scan(
             if payload.target_name and payload.target_name.strip()
             else DEFAULT_RAW_TARGET_NAME
         )
+        # Already validated (http/https, has a host) and never fetched - it's
+        # purely a comparison identity for this pasted response.
+        target_url = payload.target_url
 
     # --- Resolve policy --------------------------------------------------
     policy_headers: list[PolicyHeaderIn]
@@ -91,6 +101,7 @@ def scan(
         target=target,
         fetched_status_code=fetched_status_code,
         csp_policy=csp_policy,
+        target_url=target_url,
     )
 
     # Save a report of this scan - only the policy-scoped findings/CSP
@@ -111,6 +122,7 @@ def scan(
             policy_version=policy_version,
             source=scan_result.source.value,
             target=scan_result.target,
+            target_url=scan_result.target_url,
             fetched_status_code=scan_result.fetched_status_code,
             score=scan_result.score,
             grade=scan_result.grade,

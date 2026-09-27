@@ -6,6 +6,7 @@ import {
   RAW_RESPONSE_MAX_LENGTH,
   SCAN_URL_MAX_LENGTH,
   TARGET_NAME_MAX_LENGTH,
+  TARGET_URL_MAX_LENGTH,
 } from "@/lib/limits";
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { useEffect, useState } from "react";
@@ -34,6 +35,7 @@ export default function ScanPage() {
   const [url, setUrl] = useState("");
   const [rawResponse, setRawResponse] = useState("");
   const [targetName, setTargetName] = useState("");
+  const [targetUrl, setTargetUrl] = useState("");
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [policySource, setPolicySource] = useState<"saved" | "adhoc">("saved");
@@ -73,6 +75,10 @@ export default function ScanPage() {
       setError("Paste a raw HTTP response or header set.");
       return;
     }
+    if (inputMode === "raw" && !targetUrl.trim()) {
+      setError("Enter a Target URL, so this scan can be compared with future scans of the same target.");
+      return;
+    }
     if (policySource === "saved" && !selectedPolicyId) {
       setError("Select a policy, or switch to 'Build ad-hoc policy'.");
       return;
@@ -99,6 +105,7 @@ export default function ScanPage() {
               url: inputMode === "url" ? url.trim() : undefined,
               raw_response: inputMode === "raw" ? rawResponse : undefined,
               target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
+              target_url: inputMode === "raw" ? targetUrl.trim() || undefined : undefined,
               policy_id: selectedPolicyId,
             }
           : {
@@ -106,6 +113,7 @@ export default function ScanPage() {
               url: inputMode === "url" ? url.trim() : undefined,
               raw_response: inputMode === "raw" ? rawResponse : undefined,
               target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
+              target_url: inputMode === "raw" ? targetUrl.trim() || undefined : undefined,
               policy: {
                 name: adhocName || "Ad-hoc Policy",
                 description: "",
@@ -165,6 +173,21 @@ export default function ScanPage() {
         ) : (
           <div className="fade-in" key="raw-field">
             <div className="field">
+              <label>Target URL</label>
+              <input
+                placeholder="https://staging.example.com"
+                value={targetUrl}
+                maxLength={TARGET_URL_MAX_LENGTH}
+                onChange={(e) => setTargetUrl(e.target.value)}
+              />
+              <CharCount length={targetUrl.length} max={TARGET_URL_MAX_LENGTH} showFrom={0.9} />
+              <span className="field-hint">
+                Not fetched - this only tags the scan with the address it came from, so it
+                can be matched, for comparison, with future scans of the same target,
+                including a real URL scan of it.
+              </span>
+            </div>
+            <div className="field">
               <label>Target name (optional)</label>
               <input
                 placeholder="e.g. My Staging Site"
@@ -173,8 +196,8 @@ export default function ScanPage() {
                 onChange={(e) => setTargetName(e.target.value)}
               />
               <span className="field-hint">
-                There&apos;s no URL to label a pasted response with. Give it a name, or
-                leave this blank to use &quot;HTTP Response Scan&quot;. Up to {TARGET_NAME_MAX_LENGTH}{" "}
+                A friendlier label to show instead of the URL above. Leave this blank to
+                use &quot;HTTP Response Scan&quot;. Up to {TARGET_NAME_MAX_LENGTH}{" "}
                 characters ({targetName.length}/{TARGET_NAME_MAX_LENGTH}).
               </span>
             </div>

@@ -10,6 +10,7 @@ re-evaluates a policy or recomputes a score.
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
 
@@ -46,30 +47,75 @@ def normalize_target_name(name: str | None) -> str:
     return re.sub(r"\s+", " ", (name or "").strip()).lower()
 
 
+# Default port per scheme, for stripping it from a URL identity - mirrors
+# comparators.normalize_origin, kept separate since that function only
+# canonicalises bare origins (no path) and this one canonicalises full URLs.
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def normalize_target_url(url: str) -> str:
+    """Canonical form of a URL for target-identity matching: scheme and host
+    lower-cased, a default port dropped, and a bare root path ("" vs "/")
+    treated as the same address. The rest of the path (and query) stays
+    case-sensitive - different resources are different targets. Falls back to
+    lower-cased opaque text for anything that isn't a plain http(s) URL, so a
+    malformed value still normalises deterministically instead of raising."""
+    text = re.sub(r"\s+", " ", url.strip())
+    try:
+        parts = urlsplit(text)
+    except ValueError:
+        return text.lower()
+    if not parts.scheme or not parts.hostname:
+        return text.lower()
+    scheme = parts.scheme.lower()
+    host = parts.hostname.lower()
+    host_text = f"[{host}]" if ":" in host else host
+    port = parts.port
+    if port is not None and port != _DEFAULT_PORTS.get(scheme):
+        host_text = f"{host_text}:{port}"
+    path = "" if parts.path in ("", "/") else parts.path
+    query = f"?{parts.query}" if parts.query else ""
+    return f"{scheme}://{host_text}{path}{query}"
+
+
+def _target_identity(report: models.ScanReport) -> tuple[str, str]:
+    """This report's comparison identity: a normalised URL when one exists
+    (a fetched URL, or a raw scan's user-supplied Target URL), otherwise the
+    normalised target name. Two reports are the same target exactly when
+    their identities are equal - this is what lets a raw-response scan with a
+    Target URL compare against a real URL-mode scan of the same address, not
+    just against other raw scans."""
+    if report.source == "url" and report.target:
+        return ("url", normalize_target_url(report.target))
+    if report.source == "raw" and report.target_url:
+        return ("url", normalize_target_url(report.target_url))
+    return ("name", normalize_target_name(report.target))
+
+
 def is_anonymous_raw_target(report: models.ScanReport) -> bool:
-    return report.source == "raw" and normalize_target_name(report.target) == normalize_target_name(
-        DEFAULT_RAW_TARGET_NAME
-    )
+    """No stable identity to compare by: a raw scan left at the default name
+    and given no Target URL. The API now requires a Target URL for every new
+    raw scan, so this only ever applies to a scan saved before that - never
+    to one made after this validation was added."""
+    if report.source != "raw" or report.target_url:
+        return False
+    return normalize_target_name(report.target) == normalize_target_name(DEFAULT_RAW_TARGET_NAME)
 
 
 def _same_target(current: models.ScanReport, other: models.ScanReport) -> bool:
-    """Same logical target: raw scans by normalised name, URL scans by exact
-    fetched URL (paths are case-sensitive, so no loose matching there). A
-    typed name and a fetched URL are never the same target."""
-    if current.source != other.source:
-        return False
-    if current.source == "raw":
-        return normalize_target_name(current.target) == normalize_target_name(other.target)
-    return current.target == other.target
+    """Same logical target - by identity (see `_target_identity`), not by
+    source, so a raw scan tagged with a Target URL matches a real URL-mode
+    scan of the same address."""
+    return _target_identity(current) == _target_identity(other)
 
 
 def _earlier_reports(db: Session, current: models.ScanReport):
-    """The same user's earlier reports of the same kind, most recent first."""
+    """The same user's earlier reports (any source - `_same_target` decides
+    what counts as the same target), most recent first."""
     return (
         db.query(models.ScanReport)
         .filter(
             models.ScanReport.owner_id == current.owner_id,
-            models.ScanReport.source == current.source,
             models.ScanReport.id != current.id,
             models.ScanReport.scanned_at < current.scanned_at,
         )
@@ -167,6 +213,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
             id=previous.id,
             scan_number=previous.scan_number,
             target=previous.target,
+            target_url=previous.target_url,
             score=previous.score,
             grade=previous.grade,
             scanned_at=previous.scanned_at,
@@ -175,6 +222,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
             id=latest.id,
             scan_number=latest.scan_number,
             target=latest.target,
+            target_url=latest.target_url,
             score=latest.score,
             grade=latest.grade,
             scanned_at=latest.scanned_at,

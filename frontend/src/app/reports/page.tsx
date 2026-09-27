@@ -7,7 +7,7 @@ import type { Policy, ScanReportSummary } from "@/lib/types";
 import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
-import { normalizeTargetName, roundDelta } from "@/lib/format";
+import { normalizeTargetName, roundDelta, targetIdentity } from "@/lib/format";
 import { ExportDropdown } from "@/components/ExportDropdown";
 import { Highlight } from "@/components/Highlight";
 import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
@@ -37,22 +37,25 @@ const DEFAULT_RAW_TARGET_NAME = "HTTP Response Scan";
 /** Score change per report, shown only when a valid comparison exists.
  * Mirrors the backend: reports saved with a stored previous scan use exactly
  * that scan (no delta if it has been deleted); older reports fall back to the
- * immediately earlier scan with the same source, target (raw names compared
- * loosely), policy and policy version. Ad-hoc policies and unnamed raw scans
- * are never compared. A cheap visual hint - the authoritative diff lives in
- * ComparisonPanel on the report detail page. */
+ * immediately earlier scan with the same target identity (see
+ * lib/format.targetIdentity - a normalized URL when one exists, including a
+ * raw scan's Target URL matching a real URL-mode scan of the same address,
+ * else the normalized name), policy and policy version. Ad-hoc policies and
+ * unnamed, URL-less raw scans are never compared. A cheap visual hint - the
+ * authoritative diff lives in ComparisonPanel on the report detail page. */
 function computeScoreDeltas(reports: ScanReportSummary[]): Map<string, number> {
   const deltas = new Map<string, number>();
   const byId = new Map(reports.map((r) => [r.id, r]));
   const groups = new Map<string, ScanReportSummary[]>();
 
   const isAnonymous = (r: ScanReportSummary) =>
-    r.source === "raw" && normalizeTargetName(r.target) === normalizeTargetName(DEFAULT_RAW_TARGET_NAME);
+    r.source === "raw" &&
+    !r.target_url &&
+    normalizeTargetName(r.target) === normalizeTargetName(DEFAULT_RAW_TARGET_NAME);
 
   for (const r of reports) {
     if (!r.policy_id || isAnonymous(r)) continue;
-    const target = r.source === "raw" ? normalizeTargetName(r.target) : (r.target ?? "");
-    const key = `${r.source}|${target}|${r.policy_id}|${r.policy_version}`;
+    const key = `${targetIdentity(r)}|${r.policy_id}|${r.policy_version}`;
     const group = groups.get(key) ?? [];
     group.push(r);
     groups.set(key, group);
@@ -140,6 +143,11 @@ const ReportRow = memo(function ReportRow({
             {report.target ? <Highlight text={report.target} query={highlightTarget} /> : "—"}
           </span>
         </div>
+        {report.target_url && (
+          <div className="field-hint mono" style={{ marginTop: 2, overflowWrap: "anywhere" }}>
+            {report.target_url}
+          </div>
+        )}
         <div className="policy-card-meta">
           {report.policy_id ? (
             <button

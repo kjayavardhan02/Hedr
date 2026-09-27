@@ -70,6 +70,7 @@ def _report(
     scan_number=1,
     owner_id="owner-1",
     target="https://example.com",
+    target_url=None,
     policy_id="policy-1",
     policy_version="v1",
     scanned_at=None,
@@ -83,6 +84,7 @@ def _report(
         policy_version=policy_version,
         source="raw",
         target=target,
+        target_url=target_url,
         fetched_status_code=200,
         score=score,
         grade=grade,
@@ -469,6 +471,38 @@ class TestTargetNameNormalization:
         report.source = "url"
         assert scan_comparison.is_anonymous_raw_target(report) is False
 
+    def test_a_target_url_gives_identity_even_at_the_default_name(self):
+        report = _report(target="HTTP Response Scan", target_url="https://example.com")
+        assert scan_comparison.is_anonymous_raw_target(report) is False
+
+
+class TestTargetUrlNormalization:
+    def test_scheme_and_host_are_lowercased(self):
+        assert scan_comparison.normalize_target_url("HTTPS://Example.COM/Path") == "https://example.com/Path"
+
+    def test_path_stays_case_sensitive(self):
+        assert scan_comparison.normalize_target_url("https://example.com/Path") != scan_comparison.normalize_target_url(
+            "https://example.com/path"
+        )
+
+    def test_default_port_is_dropped(self):
+        assert scan_comparison.normalize_target_url("https://example.com:443/api") == "https://example.com/api"
+        assert scan_comparison.normalize_target_url("http://example.com:80/api") == "http://example.com/api"
+
+    def test_non_default_port_is_kept(self):
+        assert scan_comparison.normalize_target_url("https://example.com:8443/api") == "https://example.com:8443/api"
+
+    def test_bare_root_path_ignores_trailing_slash(self):
+        assert scan_comparison.normalize_target_url("https://example.com") == scan_comparison.normalize_target_url(
+            "https://example.com/"
+        )
+
+    def test_query_string_is_kept(self):
+        assert scan_comparison.normalize_target_url("https://example.com/api?x=1") == "https://example.com/api?x=1"
+
+    def test_malformed_value_falls_back_to_lowercased_text(self):
+        assert scan_comparison.normalize_target_url("not a url") == "not a url"
+
 
 class TestTargetMatchingRules:
     @pytest.fixture(autouse=True)
@@ -512,6 +546,52 @@ class TestTargetMatchingRules:
         self.db.add(fetched)
         self.db.commit()
         current = self._save(target="https://example.com", scanned_at=now)
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current) is None
+
+    def test_a_raw_scans_target_url_matches_a_real_url_scan_of_the_same_address(self):
+        now = datetime.now(timezone.utc)
+        fetched = _report(owner_id=self.owner_id, target="https://example.com/", scanned_at=now - timedelta(hours=1))
+        fetched.source = "url"
+        self.db.add(fetched)
+        self.db.commit()
+        # Different display name, and the fetched URL's trailing slash and
+        # case differ trivially from what the user typed - still one target.
+        current = self._save(
+            target="My Staging Site", target_url="HTTPS://Example.com", scanned_at=now
+        )
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current).id == fetched.id
+
+    def test_two_raw_scans_share_a_target_url_even_with_different_names(self):
+        now = datetime.now(timezone.utc)
+        earlier = self._save(
+            target="First paste", target_url="https://example.com/api", scanned_at=now - timedelta(hours=1)
+        )
+        current = self._save(
+            target="Second paste", target_url="https://example.com/api", scanned_at=now
+        )
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current).id == earlier.id
+
+    def test_a_target_url_does_not_match_a_different_address(self):
+        now = datetime.now(timezone.utc)
+        fetched = _report(owner_id=self.owner_id, target="https://example.com", scanned_at=now - timedelta(hours=1))
+        fetched.source = "url"
+        self.db.add(fetched)
+        self.db.commit()
+        current = self._save(target_url="https://other.example.com", scanned_at=now)
+
+        assert scan_comparison.find_previous_comparable_report(self.db, current) is None
+
+    def test_a_raw_scan_without_a_target_url_still_only_matches_by_name(self):
+        now = datetime.now(timezone.utc)
+        fetched = _report(owner_id=self.owner_id, target="https://example.com", scanned_at=now - timedelta(hours=1))
+        fetched.source = "url"
+        self.db.add(fetched)
+        self.db.commit()
+        # No target_url given, and the name isn't the fetched URL either.
+        current = self._save(target="My Staging Site", scanned_at=now)
 
         assert scan_comparison.find_previous_comparable_report(self.db, current) is None
 

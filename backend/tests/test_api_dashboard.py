@@ -2,7 +2,7 @@ RAW_NO_HEADERS = "HTTP/1.1 200 OK\nDate: Fri, 18 Sep 2026 12:00:00 GMT\n\n"
 
 
 def run_scan(client, policy, raw_response=RAW_NO_HEADERS, policy_id=None, target_name=None):
-    payload = {"source": "raw", "raw_response": raw_response}
+    payload = {"source": "raw", "raw_response": raw_response, "target_url": "https://example.com"}
     if policy_id:
         payload["policy_id"] = policy_id
     else:

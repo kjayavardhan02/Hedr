@@ -118,6 +118,7 @@ class TestScannerVersion:
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n",
                 "target_name": "versioned",
+                "target_url": "https://example.com",
                 "policy": {"name": "p", "description": "", "headers": [{"header_name": "X-Frame-Options", "expected_value": "DENY", "required": True}]},
             },
         )
@@ -133,6 +134,7 @@ class TestScannerVersion:
                 "source": "raw",
                 "raw_response": "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://a.com\nCache-Control: private, no-store, must-revalidate\n\n",
                 "target_name": "roundtrip",
+                "target_url": "https://example.com",
                 "policy": {
                     "name": "p",
                     "description": "",

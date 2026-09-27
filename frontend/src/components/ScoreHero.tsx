@@ -16,6 +16,10 @@ interface ScoreHeroData {
   grade: string;
   policy_name: string;
   target: string | null;
+  /** A raw-response scan's Target URL, when given - the address it's tagged
+   * with for comparison purposes (never fetched). Null for a URL-mode scan,
+   * whose `target` is already the fetched URL. */
+  target_url?: string | null;
   fetched_status_code: number | null;
   findings: HeaderFinding[];
 }
@@ -43,6 +47,7 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
               {result.target ? (
                 <>
                   Target: <span className="mono">{result.target}</span>
+                  {result.target_url && <> · <span className="mono">{result.target_url}</span></>}
                   {result.fetched_status_code !== null && <> — HTTP {result.fetched_status_code}</>}
                 </>
               ) : (
@@ -80,6 +85,7 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
             {result.target ? (
               <>
                 Target: <span className="mono">{result.target}</span>
+                {result.target_url && <> · <span className="mono">{result.target_url}</span></>}
                 {result.fetched_status_code !== null && (
                   <> — HTTP {result.fetched_status_code}</>
                 )}
