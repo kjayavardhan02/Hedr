@@ -5,7 +5,39 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  username: string | null;
+  organization: string | null;
+  job_title: string | null;
+  /** The policy pre-selected on the Scan page, if one is set. */
+  default_policy_id: string | null;
   created_at: string;
+}
+
+/** GET /api/profile - a User plus the account-security fields no other
+ * endpoint needs. */
+export interface Profile extends User {
+  /** Null until the password has ever been changed. */
+  password_changed_at: string | null;
+  /** Always false today - see Feature_Pending.md. */
+  two_factor_enabled: boolean;
+}
+
+export interface ProfileUpdatePayload {
+  first_name?: string;
+  last_name?: string;
+  /** "" clears it back to unset. */
+  username?: string;
+  organization?: string;
+  job_title?: string;
+}
+
+export interface PasswordChangePayload {
+  current_password: string;
+  new_password: string;
+}
+
+export interface Preferences {
+  default_policy_id: string | null;
 }
 
 export interface RegisterPayload {

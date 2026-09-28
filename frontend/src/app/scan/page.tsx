@@ -11,6 +11,7 @@ import {
 import { duplicateHeaderMessage, duplicateHeaderNames } from "@/lib/policyValidation";
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import type { CSPPolicy, Policy, PolicyHeader, ScanResult } from "@/lib/types";
 import { ExportMenu } from "@/components/ExportMenu";
 import { HeaderPolicyEditor } from "@/components/HeaderPolicyEditor";
@@ -31,6 +32,7 @@ Referrer-Policy: strict-origin-when-cross-origin
 X-Frame-Options: SAMEORIGIN`;
 
 export default function ScanPage() {
+  const { user } = useAuth();
   const [inputMode, setInputMode] = useState<"url" | "raw">("url");
   const [url, setUrl] = useState("");
   const [rawResponse, setRawResponse] = useState("");
@@ -56,12 +58,21 @@ export default function ScanPage() {
       .listPolicies()
       .then((data) => {
         setPolicies(data);
-        if (data.length > 0) setSelectedPolicyId(data[0].id);
+        // Preferences > Default Policy, when it's still one of the user's
+        // policies; otherwise fall back to the first one in the list.
+        const preferred = user?.default_policy_id
+          ? data.find((p) => p.id === user.default_policy_id)
+          : undefined;
+        if (preferred) setSelectedPolicyId(preferred.id);
+        else if (data.length > 0) setSelectedPolicyId(data[0].id);
       })
       .catch(() => {
         // Non-fatal: user can still use an ad-hoc policy.
       });
-  }, []);
+    // Only re-resolve the default when the preference itself changes, not
+    // on every render of a user object with the same default policy id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.default_policy_id]);
 
   async function handleScan() {
     setError(null);

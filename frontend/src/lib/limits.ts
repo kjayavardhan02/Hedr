@@ -9,3 +9,7 @@ export const SCAN_URL_MAX_LENGTH = 2000;
 export const TARGET_URL_MAX_LENGTH = 2000;
 export const RAW_RESPONSE_MAX_LENGTH = 200_000;
 export const HEADER_NAME_MAX_LENGTH = 100;
+export const USERNAME_MAX_LENGTH = 50;
+export const ORGANIZATION_MAX_LENGTH = 100;
+export const JOB_TITLE_MAX_LENGTH = 100;
+export const NEW_PASSWORD_MIN_LENGTH = 8;

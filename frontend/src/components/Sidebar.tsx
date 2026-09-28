@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { capitalize } from "@/lib/format";
 import { ShieldLogo } from "@/components/ShieldLogo";
+import { Avatar } from "@/components/Avatar";
+import { AccountMenu } from "@/components/AccountMenu";
 
 const HIDDEN_PATHS = new Set(["/login", "/signup"]);
 
@@ -63,38 +65,18 @@ const NAV_ITEMS = [
   },
 ];
 
-function initials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-}
-
-function Avatar({ userId, firstName, lastName }: { userId: string; firstName: string; lastName: string }) {
-  const [failed, setFailed] = useState(false);
-
-  if (failed) {
-    return <div className="sidebar-avatar">{initials(firstName, lastName)}</div>;
-  }
-
-  return (
-    <div className="sidebar-avatar">
-      <img
-        src={`https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(userId)}`}
-        alt=""
-        aria-hidden="true"
-        onError={() => setFailed(true)}
-      />
-    </div>
-  );
-}
-
 export function Sidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  // Close the drawer whenever the route changes (link clicks, back/forward).
+  // Close the drawer (and the account menu, if somehow still open) whenever
+  // the route changes (link clicks, back/forward).
   useEffect(() => {
     setMobileOpen(false);
+    setAccountMenuOpen(false);
   }, [pathname]);
 
   // Lock background scroll while the mobile drawer is open.
@@ -147,14 +129,32 @@ export function Sidebar() {
           Hedr
         </Link>
 
-        <div className="sidebar-profile">
-          <Avatar userId={user.id} firstName={user.first_name} lastName={user.last_name} />
-          <div className="sidebar-profile-info">
-            <div className="sidebar-profile-name">
-              {capitalize(user.first_name)} {capitalize(user.last_name)}
+        <div className="account-menu-wrap">
+          <button
+            type="button"
+            className="sidebar-profile sidebar-profile-button"
+            onClick={() => setAccountMenuOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={accountMenuOpen}
+          >
+            <Avatar userId={user.id} firstName={user.first_name} lastName={user.last_name} />
+            <div className="sidebar-profile-info">
+              <div className="sidebar-profile-name">
+                {capitalize(user.first_name)} {capitalize(user.last_name)}
+              </div>
+              <div className="sidebar-profile-email">{user.email}</div>
             </div>
-            <div className="sidebar-profile-email">{user.email}</div>
-          </div>
+            <span className="sidebar-profile-chevron" aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {accountMenuOpen && (
+            <AccountMenu
+              user={user}
+              onClose={() => setAccountMenuOpen(false)}
+              onSignOut={handleLogout}
+            />
+          )}
         </div>
 
         <nav className="sidebar-nav">

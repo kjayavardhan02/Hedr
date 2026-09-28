@@ -46,6 +46,18 @@ class User(Base):
     first_name: Mapped[str] = mapped_column(String, nullable=False)
     last_name: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+    # Profile fields below are all optional - an account works fine without
+    # ever touching them.
+    username: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
+    organization: Mapped[str | None] = mapped_column(String, nullable=True)
+    job_title: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Null until the password is ever changed - the Account Security panel
+    # falls back to `created_at` ("since account creation") in that case.
+    password_changed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # The policy pre-selected when starting a new scan. A historical pointer
+    # like ScanReport.policy_id, not a ForeignKey - deleting that policy just
+    # means this quietly stops resolving to anything, checked where it's read.
+    default_policy_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class Policy(Base):

@@ -40,10 +40,86 @@ class UserOut(BaseModel):
     email: str
     first_name: str
     last_name: str
+    username: str | None = None
+    organization: str | None = None
+    job_title: str | None = None
+    # The policy pre-selected on the Scan page, if the user set one.
+    default_policy_id: str | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Profile / account management
+# ---------------------------------------------------------------------------
+
+
+class ProfileOut(BaseModel):
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    username: str | None = None
+    organization: str | None = None
+    job_title: str | None = None
+    default_policy_id: str | None = None
+    created_at: datetime
+    # Null until the password has ever been changed - the frontend falls
+    # back to `created_at` ("since account creation") in that case.
+    password_changed_at: datetime | None = None
+    # Always False for now - there's no 2FA implementation yet (see
+    # Feature_Pending.md). A real field rather than hardcoding "Not enabled"
+    # in the frontend, so turning 2FA on later is a backend-only change.
+    two_factor_enabled: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class ProfileUpdate(BaseModel):
+    # Every field is optional and independent - a PATCH only touches the
+    # fields it includes. Sending "" for username/organization/job_title
+    # clears it back to unset; first/last name can't be blanked out.
+    first_name: str | None = Field(default=None, max_length=50)
+    last_name: str | None = Field(default=None, max_length=50)
+    username: str | None = Field(default=None, max_length=50)
+    organization: str | None = Field(default=None, max_length=100)
+    job_title: str | None = Field(default=None, max_length=100)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def _non_blank_if_given(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("This field cannot be blank.")
+        return stripped
+
+    @field_validator("username", "organization", "job_title")
+    @classmethod
+    def _strip_or_clear(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, max_length=72)
+    # Same rule as account creation (UserCreate.password) - min_length=8,
+    # max_length keeps it under bcrypt's 72-byte input limit.
+    new_password: str = Field(..., min_length=8, max_length=72)
+
+
+class PreferencesOut(BaseModel):
+    default_policy_id: str | None = None
+
+
+class PreferencesUpdate(BaseModel):
+    # Explicit null clears the default policy back to "none selected".
+    default_policy_id: str | None = None
 
 
 # ---------------------------------------------------------------------------

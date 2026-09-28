@@ -5,8 +5,12 @@ import type {
   ExplainRequestPayload,
   ExplainResponse,
   LoginPayload,
+  PasswordChangePayload,
   Policy,
   PolicyCreatePayload,
+  Preferences,
+  Profile,
+  ProfileUpdatePayload,
   RegisterPayload,
   ScanReport,
   ScanReportSummary,
@@ -112,4 +116,12 @@ export const api = {
   getReportHistory: (id: string) => request<TargetHistoryResponse>(`/api/reports/${id}/history`),
   deleteReport: (id: string) => request<void>(`/api/reports/${id}`, { method: "DELETE" }),
   getDashboardSummary: () => request<DashboardSummary>("/api/dashboard/summary"),
+  getProfile: () => request<Profile>("/api/profile"),
+  updateProfile: (payload: ProfileUpdatePayload) =>
+    request<Profile>("/api/profile", { method: "PATCH", body: JSON.stringify(payload) }),
+  changePassword: (payload: PasswordChangePayload) =>
+    request<void>("/api/profile/password/change", { method: "POST", body: JSON.stringify(payload) }),
+  getPreferences: () => request<Preferences>("/api/profile/preferences"),
+  updatePreferences: (payload: Preferences) =>
+    request<Preferences>("/api/profile/preferences", { method: "PATCH", body: JSON.stringify(payload) }),
 };

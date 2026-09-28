@@ -22,6 +22,10 @@ interface AuthContextValue {
     lastName: string
   ) => Promise<void>;
   logout: () => Promise<void>;
+  /** Re-fetches the current user - call after a profile/preferences edit so
+   * the sidebar and anything else reading `user` picks up the change
+   * without needing a full page reload. */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -74,8 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const refreshed = await api.me();
+    setUser(refreshed);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

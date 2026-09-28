@@ -5,6 +5,21 @@ export function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/** A rough 0-4 strength read for a candidate password, purely as a visual
+ * nudge - never itself an accept/reject rule (the actual minimum length is
+ * enforced separately, both here and on the backend). Shared by signup and
+ * the Change Password form so the two never drift apart. */
+export function passwordStrength(password: string): { label: string; level: number } {
+  if (!password) return { label: "", level: 0 };
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (/[0-9]/.test(password) && /[a-zA-Z]/.test(password)) score++;
+  if (/[^a-zA-Z0-9]/.test(password)) score++;
+  const labels = ["Too short", "Weak", "Okay", "Good", "Strong"];
+  return { label: labels[score], level: score };
+}
+
 /** Short relative time ("2 hours ago"), falling back to an absolute date
  * ("Sep 18") once it's more than a week old - matches how the Dashboard's
  * Latest Scan / Recent Scans need to read at a glance. */
@@ -35,6 +50,12 @@ export function timeAgo(iso: string): string {
  * more than one is shown side by side. */
 export function formatShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** "Month Year" ("September 2026") - for a "Member since" line, where the
+ * exact day doesn't matter. */
+export function formatMonthYear(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 /** Full absolute date + time ("Sep 18, 2026, 3:45 PM"), matching the format
