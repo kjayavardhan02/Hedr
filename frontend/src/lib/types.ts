@@ -10,6 +10,8 @@ export interface User {
   job_title: string | null;
   /** The policy pre-selected on the Scan page, if one is set. */
   default_policy_id: string | null;
+  /** Never null - the backend resolves an unset value to "dark". */
+  theme: "dark" | "light" | "system";
   created_at: string;
 }
 
@@ -38,6 +40,13 @@ export interface PasswordChangePayload {
 
 export interface Preferences {
   default_policy_id: string | null;
+  theme: "dark" | "light" | "system";
+}
+
+/** PATCH body: every field optional and independent, same as ProfileUpdatePayload. */
+export interface PreferencesUpdatePayload {
+  default_policy_id?: string | null;
+  theme?: "dark" | "light" | "system";
 }
 
 export interface RegisterPayload {

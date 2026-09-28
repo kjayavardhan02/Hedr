@@ -9,6 +9,7 @@ import type {
   Policy,
   PolicyCreatePayload,
   Preferences,
+  PreferencesUpdatePayload,
   Profile,
   ProfileUpdatePayload,
   RegisterPayload,
@@ -122,6 +123,6 @@ export const api = {
   changePassword: (payload: PasswordChangePayload) =>
     request<void>("/api/profile/password/change", { method: "POST", body: JSON.stringify(payload) }),
   getPreferences: () => request<Preferences>("/api/profile/preferences"),
-  updatePreferences: (payload: Preferences) =>
+  updatePreferences: (payload: PreferencesUpdatePayload) =>
     request<Preferences>("/api/profile/preferences", { method: "PATCH", body: JSON.stringify(payload) }),
 };

@@ -10,6 +10,7 @@ import {
 import { AUTH_EVENT, api } from "./api";
 import type { User } from "./types";
 import { clearSavedFilters } from "./savedFilters";
+import { applyTheme } from "./theme";
 
 interface AuthContextValue {
   user: User | null;
@@ -34,10 +35,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // The blocking script in layout.tsx already applied last time's remembered
+  // theme before paint (see lib/theme.ts) - once the account's own value
+  // loads, it's the source of truth, so reconcile in case they differ (a
+  // new browser with no localStorage entry, or the preference changed on
+  // another device).
+  const setUserAndApplyTheme = useCallback((loaded: User | null) => {
+    setUser(loaded);
+    if (loaded) applyTheme(loaded.theme);
+  }, []);
+
   useEffect(() => {
     api
       .me()
-      .then(setUser)
+      .then(setUserAndApplyTheme)
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
@@ -52,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const loggedIn = await api.login({ email, password });
-    setUser(loggedIn);
+    setUserAndApplyTheme(loggedIn);
   }, []);
 
   const register = useCallback(
@@ -63,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         first_name: firstName,
         last_name: lastName,
       });
-      setUser(created);
+      setUserAndApplyTheme(created);
     },
     []
   );
@@ -80,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     const refreshed = await api.me();
-    setUser(refreshed);
+    setUserAndApplyTheme(refreshed);
   }, []);
 
   return (
