@@ -5,7 +5,14 @@ import { useToast } from "@/components/Toast";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError, api } from "@/lib/api";
 import type { Policy } from "@/lib/types";
+import { applyTheme, type Theme } from "@/lib/theme";
 import { IconSliders } from "./icons";
+
+const THEME_OPTIONS: { value: Theme; label: string; hint: string }[] = [
+  { value: "system", label: "System", hint: "Matches your device's setting." },
+  { value: "light", label: "Light", hint: "Always light, regardless of your device." },
+  { value: "dark", label: "Dark", hint: "Always dark, regardless of your device." },
+];
 
 function ruleSummary(policy: Policy): string {
   const n = policy.headers.length;
@@ -20,10 +27,12 @@ export function PreferencesCard({
   style?: CSSProperties;
 }) {
   const toast = useToast();
-  const { refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [value, setValue] = useState(defaultPolicyId ?? "");
   const [saving, setSaving] = useState(false);
+  const [theme, setTheme] = useState<Theme>(user?.theme ?? "dark");
+  const [themeSaving, setThemeSaving] = useState(false);
 
   useEffect(() => {
     api.listPolicies().catch(() => []).then((data) => setPolicies(data ?? []));
@@ -32,6 +41,10 @@ export function PreferencesCard({
   useEffect(() => {
     setValue(defaultPolicyId ?? "");
   }, [defaultPolicyId]);
+
+  useEffect(() => {
+    if (user) setTheme(user.theme);
+  }, [user?.theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedPolicy = useMemo(() => policies.find((p) => p.id === value), [policies, value]);
 
@@ -50,6 +63,24 @@ export function PreferencesCard({
     }
   }
 
+  async function handleThemeChange(next: Theme) {
+    const previous = theme;
+    setTheme(next);
+    applyTheme(next); // instant feedback - don't wait on the network for the page to re-theme
+    setThemeSaving(true);
+    try {
+      await api.updatePreferences({ theme: next });
+      await refreshUser();
+      toast.show("Preferences saved.", "success");
+    } catch (e) {
+      setTheme(previous);
+      applyTheme(previous);
+      toast.show(e instanceof ApiError ? e.message : "Couldn't save preferences.", "error");
+    } finally {
+      setThemeSaving(false);
+    }
+  }
+
   return (
     <div className="panel fade-in-up" id="preferences" style={style}>
       <h3 className="section-title" style={{ marginTop: 0, marginBottom: 14 }}>
@@ -61,9 +92,22 @@ export function PreferencesCard({
 
       <div className="field">
         <label>Appearance</label>
-        <div className="field-hint">
-          Dark is currently Hedr&apos;s only theme - Light and System will show up here once one exists.
+        <div className="tabs" role="radiogroup" aria-label="Appearance">
+          {THEME_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === opt.value}
+              className={`tab ${theme === opt.value ? "active" : ""}`}
+              disabled={themeSaving}
+              onClick={() => handleThemeChange(opt.value)}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
+        <span className="field-hint">{THEME_OPTIONS.find((o) => o.value === theme)?.hint}</span>
       </div>
 
       <div className="field" style={{ marginTop: 16 }}>

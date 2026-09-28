@@ -11,6 +11,58 @@
   --warn: #ffb020;
   --info: #ff7a1a;
   --radius: 10px;
+  /* A surface recessed below --panel (inputs, tab tracks) and one raised
+     above it (the bright edge modals/dropdowns fade down from). Named
+     rather than reused from --bg/--panel because the two don't move in
+     lockstep with those between themes - see the light-theme overrides. */
+  --input-bg: #0d0d0d;
+  --raised-top: #1b1b1b;
+}
+
+/* --- Light theme --------------------------------------------------------
+   Selected explicitly (Preferences → Appearance → Light) - unconditional -
+   or "System", which only goes light when the OS itself prefers light
+   (that block is scoped inside the media query below, not out here). Same
+   tokens, same layout - only these swap. The
+   `color-mix(in srgb, var(--text) N%, transparent)` tints used throughout
+   the rest of this file automatically follow --text, so they need no
+   light-mode rules of their own. "System" on an OS that prefers dark, or
+   "Dark" picked explicitly, both just leave the base :root (dark) values
+   above in place - neither needs a rule here at all. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f2efe9;
+  --panel: #fcfbf9;
+  --panel-border: #e1dcd2;
+  --text: #211d18;
+  --text-dim: #6f6a5f;
+  --accent: #e8630a;
+  --accent-dim: #b34c0a;
+  --pass: #1f8f45;
+  --fail: #cc3333;
+  --warn: #a5700a;
+  --info: #e8630a;
+  --input-bg: #f3f0ea;
+  --raised-top: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] {
+    color-scheme: light;
+    --bg: #f2efe9;
+    --panel: #fcfbf9;
+    --panel-border: #e1dcd2;
+    --text: #211d18;
+    --text-dim: #6f6a5f;
+    --accent: #e8630a;
+    --accent-dim: #b34c0a;
+    --pass: #1f8f45;
+    --fail: #cc3333;
+    --warn: #a5700a;
+    --info: #e8630a;
+    --input-bg: #f3f0ea;
+    --raised-top: #ffffff;
+  }
 }
 
 * {
@@ -48,7 +100,7 @@ select {
   font-family: inherit;
   font-size: 14px;
   color: var(--text);
-  background: #0d0d0d;
+  background: var(--input-bg);
   border: 1px solid var(--panel-border);
   border-radius: 7px;
   padding: 9px 11px;
@@ -165,7 +217,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   padding: 20px 16px;
-  background: rgba(20, 20, 20, 0.8);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
   border-right: 1px solid var(--panel-border);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -184,7 +236,7 @@ select:focus {
   padding: 12px;
   margin-bottom: 18px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
 }
 
@@ -204,7 +256,7 @@ select:focus {
 }
 
 .sidebar-profile-button:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border-color: #3a3a3a;
 }
 
@@ -220,7 +272,7 @@ select:focus {
   right: 0;
   top: calc(100% + 6px);
   z-index: 70;
-  background: linear-gradient(180deg, #1b1b1b, var(--panel) 40px);
+  background: linear-gradient(180deg, var(--raised-top), var(--panel) 40px);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 6px;
@@ -254,7 +306,7 @@ select:focus {
 }
 
 .account-menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .account-menu-item-danger:hover {
@@ -315,7 +367,7 @@ select:focus {
   margin-top: 10px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   border: 1px solid var(--panel-border);
   font-size: 12.5px;
   color: var(--text-dim);
@@ -339,7 +391,7 @@ select:focus {
   flex: 1;
   padding: 12px 8px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
 }
 
@@ -363,7 +415,7 @@ select:focus {
   margin-top: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
 }
 
@@ -385,7 +437,7 @@ select:focus {
 }
 
 .profile-row-icon.is-muted {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   color: var(--text-dim);
 }
 
@@ -458,7 +510,7 @@ select:focus {
 
 .sidebar-link:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .sidebar-link.active {
@@ -505,7 +557,7 @@ select:focus {
 }
 
 .hamburger-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border-color: #3a3a3a;
 }
 
@@ -526,7 +578,7 @@ select:focus {
     top: 0;
     z-index: 60;
     padding: 12px 16px;
-    background: rgba(20, 20, 20, 0.85);
+    background: color-mix(in srgb, var(--panel) 85%, transparent);
     border-bottom: 1px solid var(--panel-border);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
@@ -685,7 +737,7 @@ select:focus {
   gap: 2px;
   margin-bottom: 18px;
   padding: 3px;
-  background: #0d0d0d;
+  background: var(--input-bg);
   border: 1px solid var(--panel-border);
   border-radius: 9px;
   max-width: 100%;
@@ -705,7 +757,7 @@ select:focus {
 
 .tab:hover:not(.active) {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .tab.active {
@@ -779,7 +831,7 @@ select:focus {
 
 .finding:hover {
   border-color: #3a3a3a;
-  background: rgba(255, 255, 255, 0.015);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent);
 }
 
 .finding-header {
@@ -844,7 +896,7 @@ select:focus {
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border: 1px solid var(--panel-border);
   color: var(--text-dim);
   font-size: 11.5px;
@@ -887,7 +939,7 @@ select:focus {
 
 .modal-panel {
   position: relative;
-  background: linear-gradient(180deg, #1b1b1b, var(--panel) 40px);
+  background: linear-gradient(180deg, var(--raised-top), var(--panel) 40px);
   border: 1px solid var(--panel-border);
   border-radius: 16px;
   padding: 28px;
@@ -960,7 +1012,7 @@ select:focus {
 
 .modal-close {
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   width: 28px;
@@ -974,15 +1026,15 @@ select:focus {
 
 .modal-close:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 .modal-description {
   margin: 16px 0 0;
   padding: 10px 14px;
   border-left: 2px solid var(--accent-dim);
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border-radius: 0 8px 8px 0;
   color: var(--text-dim);
   font-size: 13.5px;
@@ -1004,13 +1056,13 @@ select:focus {
   gap: 12px;
   padding: 12px 14px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.025);
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
   border: 1px solid transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .policy-preview-row:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   border-color: var(--panel-border);
 }
 
@@ -1054,7 +1106,7 @@ select:focus {
 }
 
 .badge-neutral {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text-dim);
 }
 
@@ -1118,7 +1170,7 @@ select:focus {
 
 .severity-chip-low,
 .severity-chip-info {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--text-dim);
 }
 
@@ -1136,7 +1188,7 @@ select:focus {
   gap: 4px;
   padding: 10px 14px;
   border-radius: 8px;
-  background: #0d0d0d;
+  background: var(--input-bg);
   border: 1px solid var(--panel-border);
 }
 
@@ -1267,7 +1319,7 @@ select:focus {
 .score-history-tooltip {
   position: absolute;
   transform: translate(-50%, calc(-100% - 12px));
-  background: linear-gradient(180deg, #1b1b1b, var(--panel) 40px);
+  background: linear-gradient(180deg, var(--raised-top), var(--panel) 40px);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 8px 10px;
@@ -1292,7 +1344,7 @@ select:focus {
   );
   border-color: color-mix(in srgb, var(--cmp-accent) 30%, var(--panel-border));
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 20px -12px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .cmp-card-up {
@@ -1351,7 +1403,7 @@ select:focus {
   min-width: 0;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
 }
 
@@ -1787,7 +1839,7 @@ select:focus {
 
 .policy-card:hover {
   border-color: #3a3a3a;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   transform: translateY(-2px);
   box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6);
 }
@@ -1887,8 +1939,11 @@ a {
   display: inline-block;
   width: 13px;
   height: 13px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: white;
+  /* currentColor, not a fixed white: this spins both inside a .btn (already
+     white text) and standalone on the page background (AuthGate, AIExplain),
+     which needs to read against --text instead once that's no longer white. */
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   vertical-align: -2px;
@@ -2155,7 +2210,7 @@ a {
 /* --- CSP directive breakdown ---------------------------------------------- */
 
 .csp-directives {
-  background: #0d0d0d;
+  background: var(--input-bg);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
   padding: 14px 16px;
@@ -2615,7 +2670,7 @@ a {
   );
   border-color: color-mix(in srgb, var(--metric-accent) 32%, var(--panel-border));
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 20px -12px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent);
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease,
     background 0.15s ease;
 }
@@ -2632,7 +2687,7 @@ a {
     color-mix(in srgb, var(--metric-accent) 24%, var(--panel)),
     var(--panel) 68%
   );
-  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px -14px rgba(0, 0, 0, 0.6), inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .metric-icon {
@@ -2850,7 +2905,7 @@ a {
   position: relative;
   padding: 16px 8px 14px;
   border-radius: 8px;
-  background: linear-gradient(180deg, var(--stat-tint, rgba(255, 255, 255, 0.03)), transparent 65%), #0d0d0d;
+  background: linear-gradient(180deg, var(--stat-tint, color-mix(in srgb, var(--text) 3%, transparent)), transparent 65%), var(--input-bg);
   border: 1px solid var(--panel-border);
   overflow: hidden;
 }
@@ -2905,7 +2960,7 @@ a {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 13px 16px;
-  background: linear-gradient(180deg, rgba(255, 122, 26, 0.07), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.07), color-mix(in srgb, var(--text) 2%, transparent));
   border-bottom: 1px solid var(--panel-border);
   white-space: nowrap;
 }
@@ -2936,7 +2991,7 @@ a {
 }
 
 .dashboard-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+  background: color-mix(in srgb, var(--text) 1.5%, transparent);
 }
 
 .dashboard-table tbody tr:hover {
@@ -3000,7 +3055,7 @@ a {
   min-width: 24px;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   border: 1px solid var(--panel-border);
   color: var(--text);
   font-weight: 700;
@@ -3098,7 +3153,7 @@ a {
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border: 1px solid var(--panel-border);
 }
 
@@ -3118,7 +3173,7 @@ a {
 
 .rf-tab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .rf-tab-active,
@@ -3141,7 +3196,7 @@ a {
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .rf-count strong {
@@ -3202,14 +3257,14 @@ a {
   line-height: 1;
   font-size: 18px;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
   border: 0;
   border-radius: 50%;
 }
 
 .rf-search-clear:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.14);
+  background: color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 .rf-chips {
@@ -3229,7 +3284,7 @@ a {
   padding: 7px 14px;
   font-size: 13px;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
@@ -3285,7 +3340,7 @@ a {
   gap: 9px;
   padding: 5px 12px 5px 6px;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
   border-radius: 999px;
   transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
@@ -3409,7 +3464,7 @@ a {
   padding: 10px 14px;
   text-align: left;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
@@ -3417,7 +3472,7 @@ a {
 
 .ps-trigger:hover {
   border-color: #444;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .ps-trigger:focus-visible,
@@ -3524,7 +3579,7 @@ a {
   padding: 10px 12px;
   color: var(--text-dim);
   border-bottom: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .ps-search input {
@@ -3597,7 +3652,7 @@ a {
 }
 
 .ps-option-active {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .ps-option-selected {
@@ -3692,14 +3747,14 @@ a {
   line-height: 1;
   font-size: 15px;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   border: 0;
   border-radius: 50%;
 }
 
 .rf-active-chip button:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--text) 18%, transparent);
 }
 
 /* A grade with no reports under the other active filters. */
@@ -3783,7 +3838,7 @@ a {
   font-size: 12px;
   color: var(--text-dim);
   border-top: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 /* Legacy / caveat notes on a finding (separate from policy compliance). */
@@ -3800,7 +3855,7 @@ a {
 }
 
 .advisory-info {
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   border-color: var(--panel-border);
   border-left-color: var(--text-dim);
 }
