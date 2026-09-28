@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useToast } from "@/components/Toast";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError, api } from "@/lib/api";
+import { PolicySelect } from "@/components/PolicySelect";
 import type { Policy } from "@/lib/types";
 import { applyTheme, type Theme } from "@/lib/theme";
 import { IconSliders } from "./icons";
@@ -82,7 +83,7 @@ export function PreferencesCard({
   }
 
   return (
-    <div className="panel fade-in-up" id="preferences" style={style}>
+    <div className="panel panel-raised fade-in-up" id="preferences" style={style}>
       <h3 className="section-title" style={{ marginTop: 0, marginBottom: 14 }}>
         <span className="section-icon">
           <IconSliders />
@@ -112,14 +113,7 @@ export function PreferencesCard({
 
       <div className="field" style={{ marginTop: 16 }}>
         <label>Default Policy</label>
-        <select value={value} onChange={(e) => handleChange(e.target.value)} disabled={saving}>
-          <option value="">None - choose a policy each time</option>
-          {policies.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name} {p.is_baseline ? "(baseline)" : `(v${p.version})`}
-            </option>
-          ))}
-        </select>
+        <PolicySelect policies={policies} value={value} onChange={handleChange} allowNone />
         <span className="field-hint">Pre-selected when you start a new scan.</span>
 
         {selectedPolicy && (

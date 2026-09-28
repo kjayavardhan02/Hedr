@@ -20,15 +20,26 @@ function ruleSummary(policy: Policy): string {
 
 /** Styled, searchable replacement for a native <select> of policies: grouped
  * options with a description, rule summary and a Custom/Baseline badge. Opens
- * upward when there is more room above, and never taller than the window. */
+ * upward when there is more room above, and never taller than the window.
+ *
+ * Pass `allowNone` where an explicit "no policy" state is itself a valid,
+ * persisted choice (as opposed to just "nothing picked yet") - it adds a
+ * clearable option at the top of the list instead of only ever showing a
+ * placeholder. */
 export function PolicySelect({
   policies,
   value,
   onChange,
+  allowNone = false,
+  noneLabel = "None",
+  noneHint = "Choose a policy each time",
 }: {
   policies: Policy[];
   value: string;
   onChange: (id: string) => void;
+  allowNone?: boolean;
+  noneLabel?: string;
+  noneHint?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -50,6 +61,13 @@ export function PolicySelect({
       `${p.name} ${p.description} ${p.is_baseline ? "baseline" : "custom"}`.toLowerCase().includes(q)
     );
   }, [ordered, query]);
+  const noneVisible = useMemo(() => {
+    if (!allowNone) return false;
+    const q = query.trim().toLowerCase();
+    return !q || `${noneLabel} ${noneHint}`.toLowerCase().includes(q);
+  }, [allowNone, query, noneLabel, noneHint]);
+  const offset = noneVisible ? 1 : 0;
+  const visibleCount = filtered.length + offset;
   const selected = policies.find((p) => p.id === value) ?? null;
 
   const placement = useMenuPlacement(open, triggerRef);
@@ -73,7 +91,11 @@ export function PolicySelect({
 
   function openMenu() {
     setQuery("");
-    setActive(Math.max(0, ordered.findIndex((p) => p.id === value)));
+    if (allowNone && !value) {
+      setActive(0);
+    } else {
+      setActive(Math.max(0, ordered.findIndex((p) => p.id === value)) + (allowNone ? 1 : 0));
+    }
     setOpen(true);
   }
 
@@ -83,7 +105,12 @@ export function PolicySelect({
   }
 
   function choose(index: number) {
-    const policy = filtered[index];
+    if (noneVisible && index === 0) {
+      onChange("");
+      close();
+      return;
+    }
+    const policy = filtered[index - offset];
     if (policy) onChange(policy.id);
     close();
   }
@@ -104,7 +131,7 @@ export function PolicySelect({
         break;
       case "ArrowDown":
         e.preventDefault();
-        setActive((i) => Math.min(filtered.length - 1, i + 1));
+        setActive((i) => Math.min(visibleCount - 1, i + 1));
         break;
       case "ArrowUp":
         e.preventDefault();
@@ -119,7 +146,7 @@ export function PolicySelect({
       case "End":
         if (!inSearch) {
           e.preventDefault();
-          setActive(filtered.length - 1);
+          setActive(visibleCount - 1);
         }
         break;
       case "Enter":
@@ -163,6 +190,11 @@ export function PolicySelect({
                 v{selected.version} · {ruleSummary(selected)}
               </span>
             </>
+          ) : allowNone ? (
+            <>
+              <span className="ps-name">{noneLabel}</span>
+              <span className="ps-meta">{noneHint}</span>
+            </>
           ) : (
             <span className="ps-name ps-placeholder">Select a policy</span>
           )}
@@ -186,7 +218,7 @@ export function PolicySelect({
               role="combobox"
               aria-expanded="true"
               aria-controls={listId}
-              aria-activedescendant={filtered.length ? `${listId}-${active}` : undefined}
+              aria-activedescendant={visibleCount ? `${listId}-${active}` : undefined}
               aria-label="Search policies"
               placeholder="Search policies…"
               value={query}
@@ -198,14 +230,33 @@ export function PolicySelect({
               }}
             />
             <span className="ps-count">
-              {filtered.length}/{ordered.length}
+              {visibleCount}/{ordered.length + (allowNone ? 1 : 0)}
             </span>
           </div>
 
           <ul className="ps-list" role="listbox" id={listId} aria-label="Policies">
-            {filtered.length === 0 && <li className="ps-empty">No policies match &ldquo;{query.trim()}&rdquo;.</li>}
+            {visibleCount === 0 && <li className="ps-empty">No policies match &ldquo;{query.trim()}&rdquo;.</li>}
+            {noneVisible && (
+              <li
+                id={`${listId}-0`}
+                role="option"
+                aria-selected={value === ""}
+                className={`ps-option ${0 === active ? "ps-option-active" : ""} ${value === "" ? "ps-option-selected" : ""}`}
+                onMouseEnter={() => setActive(0)}
+                onClick={() => choose(0)}
+              >
+                <span className="ps-option-main">
+                  <span className="ps-name">{noneLabel}</span>
+                  <span className="ps-meta">{noneHint}</span>
+                </span>
+                <span className="ps-check" aria-hidden="true">
+                  {value === "" ? "✓" : ""}
+                </span>
+              </li>
+            )}
             {filtered.map((p, i) => {
               const startsGroup = i === 0 || filtered[i - 1].is_baseline !== p.is_baseline;
+              const rowIndex = i + offset;
               return (
                 <Fragment key={p.id}>
                   {startsGroup && (
@@ -214,12 +265,12 @@ export function PolicySelect({
                     </li>
                   )}
                   <li
-                    id={`${listId}-${i}`}
+                    id={`${listId}-${rowIndex}`}
                     role="option"
                     aria-selected={p.id === value}
-                    className={`ps-option ${i === active ? "ps-option-active" : ""} ${p.id === value ? "ps-option-selected" : ""}`}
-                    onMouseEnter={() => setActive(i)}
-                    onClick={() => choose(i)}
+                    className={`ps-option ${rowIndex === active ? "ps-option-active" : ""} ${p.id === value ? "ps-option-selected" : ""}`}
+                    onMouseEnter={() => setActive(rowIndex)}
+                    onClick={() => choose(rowIndex)}
                   >
                     <span className="ps-option-main">
                       <span className="ps-name">
