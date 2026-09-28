@@ -265,17 +265,128 @@ select:focus {
 /* --- Profile page --------------------------------------------------------- */
 
 .profile-overview {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 32px 20px;
+  padding: 36px 20px 28px;
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.07), transparent 60%), var(--panel);
+}
+
+.profile-overview::before {
+  content: "";
+  position: absolute;
+  top: -60%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(255, 122, 26, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
+.profile-overview > * {
+  position: relative;
+}
+
+.profile-avatar-ring {
+  padding: 5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), rgba(255, 122, 26, 0.15));
+  box-shadow: 0 8px 24px -8px rgba(255, 122, 26, 0.45);
+}
+
+.profile-avatar-ring > div {
+  border: 3px solid var(--panel);
 }
 
 .profile-overview-name {
-  margin-top: 14px;
+  margin-top: 16px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.profile-member-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-border);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.profile-member-pill svg {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+
+.profile-stats {
+  display: flex;
+  gap: 10px;
+  margin-top: 22px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.profile-stat {
+  flex: 1;
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+
+.profile-stat-value {
   font-size: 19px;
   font-weight: 700;
+}
+
+.profile-stat-label {
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.profile-policy-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+
+.profile-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(255, 122, 26, 0.12);
+  color: var(--accent);
+}
+
+.profile-row-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.profile-row-icon.is-muted {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
 }
 
 .sidebar-avatar {

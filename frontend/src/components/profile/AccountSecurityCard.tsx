@@ -1,17 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useToast } from "@/components/Toast";
 import { formatDateTime, timeAgo } from "@/lib/format";
 import type { Profile } from "@/lib/types";
 import { ChangePasswordModal } from "./ChangePasswordModal";
+import { IconLock } from "./icons";
 
 export function AccountSecurityCard({
   profile,
   onPasswordChanged,
+  style,
 }: {
   profile: Profile;
   onPasswordChanged: () => void;
+  style?: CSSProperties;
 }) {
   const toast = useToast();
   const [changingPassword, setChangingPassword] = useState(false);
@@ -22,10 +25,18 @@ export function AccountSecurityCard({
     : `Never changed - set since account creation (${formatDateTime(profile.created_at)})`;
 
   return (
-    <div className="panel fade-in-up" id="security">
-      <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16 }}>Account Security</h3>
+    <div className="panel fade-in-up" id="security" style={style}>
+      <h3 className="section-title" style={{ marginTop: 0, marginBottom: 14 }}>
+        <span className="section-icon">
+          <IconLock />
+        </span>
+        Account Security
+      </h3>
 
       <div className="value-row" style={{ alignItems: "center" }}>
+        <span className="profile-row-icon">
+          <IconLock />
+        </span>
         <div style={{ flexDirection: "column", display: "flex", gap: 2 }}>
           <span style={{ fontWeight: 600 }}>Password</span>
           <span className="field-hint">{passwordLabel}</span>
@@ -40,7 +51,10 @@ export function AccountSecurityCard({
         </button>
       </div>
 
-      <div className="value-row" style={{ alignItems: "center", marginTop: 16 }}>
+      <div className="value-row" style={{ alignItems: "center", marginTop: 18 }}>
+        <span className="profile-row-icon is-muted">
+          <IconLock />
+        </span>
         <div style={{ flexDirection: "column", display: "flex", gap: 2 }}>
           <span style={{ fontWeight: 600 }}>Two-Factor Authentication</span>
           <span className="field-hint">Not enabled</span>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { CharCount } from "@/components/CharCount";
 import { useToast } from "@/components/Toast";
+import { IconUser } from "@/components/profile/icons";
 import { ApiError, api } from "@/lib/api";
 import {
   JOB_TITLE_MAX_LENGTH,
@@ -12,11 +13,13 @@ import {
 } from "@/lib/limits";
 import type { Profile } from "@/lib/types";
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, unset }: { label: string; value: string; unset?: boolean }) {
   return (
     <div className="value-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
       <span className="field-hint">{label}</span>
-      <span style={{ fontSize: 15 }}>{value}</span>
+      <span style={{ fontSize: 15, color: unset ? "var(--text-dim)" : undefined, fontStyle: unset ? "italic" : undefined }}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -25,12 +28,14 @@ export function PersonalInformationCard({
   profile,
   onUpdated,
   editSignal,
+  style,
 }: {
   profile: Profile;
   onUpdated: (profile: Profile) => void;
   /** Bumped by the Profile Overview's "Edit Profile" button to jump straight
    * into edit mode here, without lifting all the form state up a level. */
   editSignal?: number;
+  style?: CSSProperties;
 }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
@@ -85,9 +90,14 @@ export function PersonalInformationCard({
   }
 
   return (
-    <div className="panel fade-in-up" id="personal-info">
+    <div className="panel fade-in-up" id="personal-info" style={style}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 16 }}>Personal Information</h3>
+        <h3 className="section-title" style={{ margin: 0 }}>
+          <span className="section-icon">
+            <IconUser />
+          </span>
+          Personal Information
+        </h3>
         {!editing && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={startEditing}>
             Edit
@@ -167,9 +177,9 @@ export function PersonalInformationCard({
         <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 10 }}>
           <Field label="Full Name" value={`${profile.first_name} ${profile.last_name}`} />
           <Field label="Email Address" value={profile.email} />
-          <Field label="Username" value={profile.username ?? "Not specified"} />
-          <Field label="Organization" value={profile.organization ?? "Not specified"} />
-          <Field label="Job Title" value={profile.job_title ?? "Not specified"} />
+          <Field label="Username" value={profile.username ?? "Not specified"} unset={!profile.username} />
+          <Field label="Organization" value={profile.organization ?? "Not specified"} unset={!profile.organization} />
+          <Field label="Job Title" value={profile.job_title ?? "Not specified"} unset={!profile.job_title} />
         </div>
       )}
     </div>
