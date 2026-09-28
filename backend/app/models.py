@@ -58,6 +58,10 @@ class User(Base):
     # like ScanReport.policy_id, not a ForeignKey - deleting that policy just
     # means this quietly stops resolving to anything, checked where it's read.
     default_policy_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # "dark" | "light" | "system". Null (unset) behaves as "dark" - Hedr's
+    # original, only theme - so an existing account's appearance never
+    # changes on its own just because this column now exists.
+    theme: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class Policy(Base):

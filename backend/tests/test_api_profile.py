@@ -20,6 +20,7 @@ def test_get_profile_returns_defaults(auth_client):
     assert body["default_policy_id"] is None
     assert body["password_changed_at"] is None
     assert body["two_factor_enabled"] is False
+    assert body["theme"] == "dark"
     assert "hashed_password" not in body
 
 
@@ -132,7 +133,10 @@ class TestPreferences:
 
     def test_defaults_to_no_default_policy(self, auth_client):
         client, _ = auth_client
-        assert client.get("/api/profile/preferences").json() == {"default_policy_id": None}
+        assert client.get("/api/profile/preferences").json() == {
+            "default_policy_id": None,
+            "theme": "dark",
+        }
 
     def test_can_set_an_owned_policy_as_default(self, auth_client):
         client, _ = auth_client
@@ -180,3 +184,36 @@ class TestPreferences:
         resp = client.patch("/api/profile/preferences", json={"default_policy_id": None})
         assert resp.status_code == 200
         assert resp.json()["default_policy_id"] is None
+
+    def test_can_set_theme(self, auth_client):
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"theme": "light"})
+        assert resp.status_code == 200
+        assert resp.json()["theme"] == "light"
+        assert client.get("/api/profile/preferences").json()["theme"] == "light"
+
+    def test_invalid_theme_rejected(self, auth_client):
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"theme": "solarized"})
+        assert resp.status_code == 422
+
+    def test_updating_theme_does_not_clear_default_policy(self, auth_client):
+        client, _ = auth_client
+        baseline = client.get("/api/policies/baselines").json()[0]
+        client.patch("/api/profile/preferences", json={"default_policy_id": baseline["id"]})
+
+        resp = client.patch("/api/profile/preferences", json={"theme": "light"})
+
+        assert resp.status_code == 200
+        assert resp.json()["default_policy_id"] == baseline["id"]
+        assert resp.json()["theme"] == "light"
+
+    def test_updating_default_policy_does_not_reset_theme(self, auth_client):
+        client, _ = auth_client
+        client.patch("/api/profile/preferences", json={"theme": "system"})
+        baseline = client.get("/api/policies/baselines").json()[0]
+
+        resp = client.patch("/api/profile/preferences", json={"default_policy_id": baseline["id"]})
+
+        assert resp.status_code == 200
+        assert resp.json()["theme"] == "system"

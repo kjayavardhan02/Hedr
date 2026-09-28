@@ -76,7 +76,7 @@ def change_password(
 
 @router.get("/preferences", response_model=PreferencesOut)
 def get_preferences(current_user: models.User = Depends(get_current_user)):
-    return PreferencesOut(default_policy_id=current_user.default_policy_id)
+    return PreferencesOut(default_policy_id=current_user.default_policy_id, theme=current_user.theme)
 
 
 @router.patch("/preferences", response_model=PreferencesOut)
@@ -85,10 +85,20 @@ def update_preferences(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    if payload.default_policy_id:
-        policy = db.get(models.Policy, payload.default_policy_id)
-        if policy is None or not (policy.is_baseline or policy.owner_id == current_user.id):
-            raise HTTPException(status_code=404, detail="Policy not found.")
-    current_user.default_policy_id = payload.default_policy_id
+    # Only the fields actually present in the request are touched - PATCHing
+    # just `theme` must never silently clear `default_policy_id`, or vice versa.
+    data = payload.model_dump(exclude_unset=True)
+
+    if "default_policy_id" in data:
+        policy_id = data["default_policy_id"]
+        if policy_id:
+            policy = db.get(models.Policy, policy_id)
+            if policy is None or not (policy.is_baseline or policy.owner_id == current_user.id):
+                raise HTTPException(status_code=404, detail="Policy not found.")
+        current_user.default_policy_id = policy_id
+
+    if "theme" in data:
+        current_user.theme = data["theme"]
+
     db.commit()
-    return PreferencesOut(default_policy_id=current_user.default_policy_id)
+    return PreferencesOut(default_policy_id=current_user.default_policy_id, theme=current_user.theme)

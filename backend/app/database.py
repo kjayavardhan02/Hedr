@@ -44,7 +44,14 @@ def ensure_schema(bind=engine) -> None:
 
     if "users" in inspector.get_table_names():
         existing_user_cols = {c["name"] for c in inspector.get_columns("users")}
-        for column in ("username", "organization", "job_title", "password_changed_at", "default_policy_id"):
+        for column in (
+            "username",
+            "organization",
+            "job_title",
+            "password_changed_at",
+            "default_policy_id",
+            "theme",
+        ):
             if column not in existing_user_cols:
                 with bind.begin() as conn:
                     conn.execute(text(f"ALTER TABLE users ADD COLUMN {column} VARCHAR"))

@@ -45,7 +45,14 @@ class UserOut(BaseModel):
     job_title: str | None = None
     # The policy pre-selected on the Scan page, if the user set one.
     default_policy_id: str | None = None
+    # "dark" | "light" | "system" - never null on the way out (see User.theme).
+    theme: Literal["dark", "light", "system"] = "dark"
     created_at: datetime
+
+    @field_validator("theme", mode="before")
+    @classmethod
+    def _default_theme_to_dark(cls, value: str | None) -> str:
+        return value or "dark"
 
     class Config:
         from_attributes = True
@@ -65,6 +72,7 @@ class ProfileOut(BaseModel):
     organization: str | None = None
     job_title: str | None = None
     default_policy_id: str | None = None
+    theme: Literal["dark", "light", "system"] = "dark"
     created_at: datetime
     # Null until the password has ever been changed - the frontend falls
     # back to `created_at` ("since account creation") in that case.
@@ -73,6 +81,11 @@ class ProfileOut(BaseModel):
     # Feature_Pending.md). A real field rather than hardcoding "Not enabled"
     # in the frontend, so turning 2FA on later is a backend-only change.
     two_factor_enabled: bool = False
+
+    @field_validator("theme", mode="before")
+    @classmethod
+    def _default_theme_to_dark(cls, value: str | None) -> str:
+        return value or "dark"
 
     class Config:
         from_attributes = True
@@ -115,11 +128,21 @@ class PasswordChangeRequest(BaseModel):
 
 class PreferencesOut(BaseModel):
     default_policy_id: str | None = None
+    theme: Literal["dark", "light", "system"] = "dark"
+
+    @field_validator("theme", mode="before")
+    @classmethod
+    def _default_theme_to_dark(cls, value: str | None) -> str:
+        return value or "dark"
 
 
 class PreferencesUpdate(BaseModel):
     # Explicit null clears the default policy back to "none selected".
     default_policy_id: str | None = None
+    # Omitted (the default) leaves the current theme unchanged - there's no
+    # "clear" state to distinguish from "dark" the way there is for
+    # default_policy_id, so unlike that field this is never treated as null.
+    theme: Literal["dark", "light", "system"] | None = None
 
 
 # ---------------------------------------------------------------------------
