@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { CharCount } from "@/components/CharCount";
+import { CopyButton } from "@/components/CopyButton";
 import { useToast } from "@/components/Toast";
-import { IconUser } from "@/components/profile/icons";
+import { IconAt, IconBriefcase, IconBuilding, IconMail, IconUser } from "@/components/profile/icons";
 import { ApiError, api } from "@/lib/api";
 import {
   JOB_TITLE_MAX_LENGTH,
@@ -13,13 +14,41 @@ import {
 } from "@/lib/limits";
 import type { Profile } from "@/lib/types";
 
-function Field({ label, value, unset }: { label: string; value: string; unset?: boolean }) {
+function Field({
+  icon,
+  label,
+  value,
+  unset,
+  copyValue,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  unset?: boolean;
+  copyValue?: string;
+}) {
   return (
-    <div className="value-row" style={{ flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-      <span className="field-hint">{label}</span>
-      <span style={{ fontSize: 15, color: unset ? "var(--text-dim)" : undefined, fontStyle: unset ? "italic" : undefined }}>
-        {value}
-      </span>
+    <div className="value-row" style={{ alignItems: "center", flexWrap: "nowrap" }}>
+      <span className={`profile-row-icon ${unset ? "is-muted" : ""}`}>{icon}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <span
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: unset ? "var(--text-dim)" : undefined,
+            fontStyle: unset ? "italic" : undefined,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {value}
+        </span>
+        <span className="field-hint">{label}</span>
+      </div>
+      {copyValue && (
+        <div style={{ marginLeft: "auto" }}>
+          <CopyButton value={copyValue} />
+        </div>
+      )}
     </div>
   );
 }
@@ -174,12 +203,27 @@ export function PersonalInformationCard({
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 10 }}>
-          <Field label="Full Name" value={`${profile.first_name} ${profile.last_name}`} />
-          <Field label="Email Address" value={profile.email} />
-          <Field label="Username" value={profile.username ?? "Not specified"} unset={!profile.username} />
-          <Field label="Organization" value={profile.organization ?? "Not specified"} unset={!profile.organization} />
-          <Field label="Job Title" value={profile.job_title ?? "Not specified"} unset={!profile.job_title} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 14 }}>
+          <Field icon={<IconUser />} label="Full Name" value={`${profile.first_name} ${profile.last_name}`} />
+          <Field icon={<IconMail />} label="Email Address" value={profile.email} copyValue={profile.email} />
+          <Field
+            icon={<IconAt />}
+            label="Username"
+            value={profile.username ?? "Not specified"}
+            unset={!profile.username}
+          />
+          <Field
+            icon={<IconBuilding />}
+            label="Organization"
+            value={profile.organization ?? "Not specified"}
+            unset={!profile.organization}
+          />
+          <Field
+            icon={<IconBriefcase />}
+            label="Job Title"
+            value={profile.job_title ?? "Not specified"}
+            unset={!profile.job_title}
+          />
         </div>
       )}
     </div>

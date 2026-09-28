@@ -53,6 +53,49 @@ export function IconBell() {
   );
 }
 
+export function IconMail() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4 7l8 6 8-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconAt() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M16 11.5v1.7a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.6 7.2"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function IconBuilding() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4.5" y="4" width="10" height="16" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="14.5" y="9.5" width="5" height="10.5" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M7.5 8h1M7.5 12h1M7.5 16h1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconBriefcase() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3.5" y="8" width="17" height="11" rx="2" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M9 8V6.5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2V8" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M3.5 13.5h17" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 export function IconCalendar() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
