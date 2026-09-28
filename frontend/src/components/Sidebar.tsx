@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/auth-context";
 import { capitalize } from "@/lib/format";
 import { ShieldLogo } from "@/components/ShieldLogo";
 import { Avatar } from "@/components/Avatar";
-import { AccountMenu } from "@/components/AccountMenu";
 
 const HIDDEN_PATHS = new Set(["/login", "/signup"]);
 
@@ -70,13 +69,10 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
-  // Close the drawer (and the account menu, if somehow still open) whenever
-  // the route changes (link clicks, back/forward).
+  // Close the drawer whenever the route changes (link clicks, back/forward).
   useEffect(() => {
     setMobileOpen(false);
-    setAccountMenuOpen(false);
   }, [pathname]);
 
   // Lock background scroll while the mobile drawer is open.
@@ -129,33 +125,18 @@ export function Sidebar() {
           Hedr
         </Link>
 
-        <div className="account-menu-wrap">
-          <button
-            type="button"
-            className="sidebar-profile sidebar-profile-button"
-            onClick={() => setAccountMenuOpen((v) => !v)}
-            aria-haspopup="menu"
-            aria-expanded={accountMenuOpen}
-          >
-            <Avatar userId={user.id} firstName={user.first_name} lastName={user.last_name} />
-            <div className="sidebar-profile-info">
-              <div className="sidebar-profile-name">
-                {capitalize(user.first_name)} {capitalize(user.last_name)}
-              </div>
-              <div className="sidebar-profile-email">{user.email}</div>
+        <Link href="/profile" className="sidebar-profile sidebar-profile-button">
+          <Avatar userId={user.id} firstName={user.first_name} lastName={user.last_name} />
+          <div className="sidebar-profile-info">
+            <div className="sidebar-profile-name">
+              {capitalize(user.first_name)} {capitalize(user.last_name)}
             </div>
-            <span className="sidebar-profile-chevron" aria-hidden="true">
-              ›
-            </span>
-          </button>
-          {accountMenuOpen && (
-            <AccountMenu
-              user={user}
-              onClose={() => setAccountMenuOpen(false)}
-              onSignOut={handleLogout}
-            />
-          )}
-        </div>
+            <div className="sidebar-profile-email">{user.email}</div>
+          </div>
+          <span className="sidebar-profile-chevron" aria-hidden="true">
+            ›
+          </span>
+        </Link>
 
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) => {

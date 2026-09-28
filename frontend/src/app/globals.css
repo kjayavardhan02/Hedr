@@ -240,11 +240,7 @@ select:focus {
   border: 1px solid var(--panel-border);
 }
 
-/* --- Account menu (the sidebar user card, made clickable) ---------------- */
-
-.account-menu-wrap {
-  position: relative;
-}
+/* --- Sidebar user card (links straight to /profile) ----------------------- */
 
 .sidebar-profile-button {
   width: 100%;
@@ -252,66 +248,20 @@ select:focus {
   cursor: pointer;
   color: inherit;
   font: inherit;
+  text-decoration: none;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .sidebar-profile-button:hover {
   background: color-mix(in srgb, var(--text) 6%, transparent);
   border-color: #3a3a3a;
+  text-decoration: none;
 }
 
 .sidebar-profile-chevron {
   flex-shrink: 0;
   font-size: 18px;
   color: var(--text-dim);
-}
-
-.account-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  z-index: 70;
-  background: linear-gradient(180deg, var(--raised-top), var(--panel) 40px);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 24px 48px -20px rgba(0, 0, 0, 0.7);
-  animation: fadeIn 0.15s ease both;
-}
-
-.account-menu-header {
-  padding: 10px 10px 8px;
-}
-
-.account-menu-divider {
-  height: 1px;
-  background: var(--panel-border);
-  margin: 4px 2px;
-}
-
-.account-menu-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 9px 10px;
-  border-radius: 6px;
-  background: none;
-  border: none;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.account-menu-item:hover {
-  background: color-mix(in srgb, var(--text) 6%, transparent);
-}
-
-.account-menu-item-danger:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: var(--fail);
 }
 
 /* --- Profile page --------------------------------------------------------- */
