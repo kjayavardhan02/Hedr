@@ -140,12 +140,13 @@ const ReportRow = memo(function ReportRow({
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span className="report-scan-badge">{report.scan_number}</span>
           <span style={{ fontWeight: 600 }} className="mono">
-            {report.target ? <Highlight text={report.target} query={highlightTarget} /> : "—"}
+            {report.target_url ??
+              (report.target ? <Highlight text={report.target} query={highlightTarget} /> : "—")}
           </span>
         </div>
-        {report.target_url && (
+        {report.target_url && report.target && (
           <div className="field-hint mono" style={{ marginTop: 2, overflowWrap: "anywhere" }}>
-            {report.target_url}
+            <Highlight text={report.target} query={highlightTarget} />
           </div>
         )}
         <div className="policy-card-meta">
