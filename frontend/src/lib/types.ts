@@ -567,6 +567,7 @@ export interface BurpImportListItem {
   name: string;
   status: string;
   source_filename: string;
+  policy_id: string | null;
   policy_name: string | null;
   policy_version: string | null;
   score: number | null;

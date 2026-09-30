@@ -1,15 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { BurpAnalysisResult, BurpEndpointAnalysis, BurpFindingGroup, BurpImportDetail } from "@/lib/types";
+import type {
+  BurpAnalysisResult,
+  BurpEndpointAnalysis,
+  BurpFindingGroup,
+  BurpHeaderInconsistency,
+  BurpImportDetail,
+  Policy,
+} from "@/lib/types";
 import { BackLink } from "@/components/BackLink";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 import { downloadBinaryBlob } from "@/lib/download";
 import { gradeForScore } from "@/lib/format";
 import { ScoreRing } from "@/components/ScoreRing";
+import { ExportDropdown } from "@/components/ExportDropdown";
+import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
 
 const PAGE_SIZE = 30;
 
@@ -48,7 +57,15 @@ function heroTone(grade: string): "up" | "warn" | "down" {
 /** Mirrors ScoreHero's `tinted` variant exactly (same cmp-card/cmp-tile
  * classes as a normal scan report's hero) so a Burp analysis reads as the
  * same kind of report - just scored across many responses instead of one. */
-function BurpScoreHero({ record, analysis }: { record: BurpImportDetail; analysis: BurpAnalysisResult }) {
+function BurpScoreHero({
+  record,
+  analysis,
+  onOpenPolicy,
+}: {
+  record: BurpImportDetail;
+  analysis: BurpAnalysisResult;
+  onOpenPolicy: (policyId: string) => void;
+}) {
   const { summary } = analysis;
   const grade = gradeForScore(summary.overall_score);
   const compliant = summary.responses_analyzed - summary.responses_with_findings;
@@ -59,7 +76,14 @@ function BurpScoreHero({ record, analysis }: { record: BurpImportDetail; analysi
         <ScoreRing score={summary.overall_score} grade={grade} />
         <div>
           <div style={{ fontWeight: 700, fontSize: 17, marginBottom: 4, overflowWrap: "anywhere" }}>
-            {record.policy_name} {record.policy_version && `(${record.policy_version})`}
+            {record.policy_id ? (
+              <button type="button" className="link-button" onClick={() => onOpenPolicy(record.policy_id as string)}>
+                {record.policy_name}
+              </button>
+            ) : (
+              record.policy_name
+            )}{" "}
+            {record.policy_version && `(${record.policy_version})`}
           </div>
           <p style={{ margin: "0 0 6px", fontSize: 14 }}>{takeaway(grade, summary.responses_with_findings)}</p>
           <div className="field-hint">
@@ -142,6 +166,80 @@ function FindingGroupCard({ finding, index }: { finding: BurpFindingGroup; index
   );
 }
 
+// Cycles for each real observed value; the "(missing)" bucket always gets
+// var(--fail) instead, regardless of position, since it represents the
+// header being entirely absent rather than just another variant.
+const CONFIG_COLORS = ["#a78bfa", "#6db3ff", "var(--warn)", "var(--accent)", "var(--pass)"];
+const MISSING_CONFIG_LABEL = "(missing)";
+
+function InconsistencyCard({ inconsistency, index }: { inconsistency: BurpHeaderInconsistency; index: number }) {
+  const [open, setOpen] = useState(false);
+  const total = inconsistency.configurations.reduce((sum, c) => sum + c.count, 0);
+
+  return (
+    <div className="finding fade-in-up" style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}>
+      <div
+        className="finding-header"
+        onClick={() => setOpen((v) => !v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setOpen((v) => !v);
+        }}
+      >
+        <div className="finding-title">
+          <span className={`chevron ${open ? "open" : ""}`}>▶</span>
+          <span className="badge badge-WARNING">{inconsistency.configurations.length} configurations</span>
+          <span>{inconsistency.header}</span>
+        </div>
+        <span className="finding-score">
+          {total} response{total === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className={`collapse ${open ? "open" : ""}`}>
+        <div className="collapse-inner">
+          <div style={{ paddingTop: 10, display: "flex", flexDirection: "column", gap: 12 }}>
+            {inconsistency.configurations.map((cfg, i) => {
+              const pct = total > 0 ? Math.round((cfg.count / total) * 100) : 0;
+              const isMissing = cfg.value === MISSING_CONFIG_LABEL;
+              const color = isMissing ? "var(--fail)" : CONFIG_COLORS[i % CONFIG_COLORS.length];
+              return (
+                <div key={cfg.value} className="inconsistency-config">
+                  <div className="inconsistency-config-header">
+                    <span
+                      className={`inconsistency-config-value ${isMissing ? "" : "mono"}`}
+                      style={isMissing ? { fontStyle: "italic", color: "var(--text-dim)" } : undefined}
+                    >
+                      {cfg.value}
+                    </span>
+                    <span className="field-hint">
+                      {cfg.count} response{cfg.count === 1 ? "" : "s"} · {pct}%
+                    </span>
+                  </div>
+                  <div className="inconsistency-bar-track">
+                    <div
+                      className="inconsistency-bar-fill"
+                      style={{ width: `${pct}%`, "--bar-color": color } as CSSProperties}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                    {cfg.affected_endpoints.map((endpoint) => (
+                      <span key={endpoint} className="endpoint-tag mono">
+                        {endpoint}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EndpointRow({ endpoint }: { endpoint: BurpEndpointAnalysis }) {
   const [open, setOpen] = useState(false);
   return (
@@ -188,19 +286,16 @@ function EndpointRow({ endpoint }: { endpoint: BurpEndpointAnalysis }) {
 export default function BurpReportDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const router = useRouter();
   const toast = useToast();
 
   const [record, setRecord] = useState<BurpImportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [search, setSearch] = useState("");
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const [issuesOpen, setIssuesOpen] = useState(false);
+  const [previewPolicy, setPreviewPolicy] = useState<Policy | null>(null);
 
   useEffect(() => {
     api
@@ -222,26 +317,19 @@ export default function BurpReportDetailPage() {
   }, [analysis, search]);
   const pageEndpoints = filteredEndpoints.slice(0, shownCount);
 
-  function requestDelete() {
-    if (confirmTimer.current) clearTimeout(confirmTimer.current);
-    if (confirming) {
-      setConfirming(false);
-      void performDelete();
-      return;
-    }
-    setConfirming(true);
-    confirmTimer.current = setTimeout(() => setConfirming(false), 3000);
-  }
-
-  async function performDelete() {
-    setDeleting(true);
+  async function openPolicy(policyId: string) {
     try {
-      await api.deleteBurpImport(id);
-      toast.show("Burp analysis deleted.", "success");
-      router.push("/reports");
+      const policy = await api.getPolicy(policyId);
+      setPreviewPolicy(policy);
     } catch (e) {
-      toast.show(e instanceof ApiError ? e.message : "Failed to delete.", "error");
-      setDeleting(false);
+      if (e instanceof ApiError && e.status === 404) {
+        toast.show(
+          "This policy no longer exists — it may have been deleted since this scan.",
+          "error"
+        );
+      } else {
+        toast.show(e instanceof ApiError ? e.message : "Couldn't open this policy.", "error");
+      }
     }
   }
 
@@ -314,21 +402,13 @@ export default function BurpReportDetailPage() {
             <strong>Time:</strong> {analyzedAt.toLocaleTimeString(undefined, { timeStyle: "medium" })}
           </p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-secondary btn-sm" onClick={handleExport} disabled={exporting}>
-            {exporting ? "Exporting…" : "Export Excel"}
-          </button>
-          <button
-            className={`btn btn-sm ${confirming ? "btn-danger-solid" : "btn-danger"}`}
-            onClick={requestDelete}
-            disabled={deleting}
-          >
-            {deleting ? "Deleting…" : confirming ? "Confirm?" : "Delete"}
-          </button>
-        </div>
+        <ExportDropdown
+          items={[{ label: "Download Excel", onSelect: handleExport }]}
+          busy={exporting}
+        />
       </div>
 
-      <BurpScoreHero record={record} analysis={analysis} />
+      <BurpScoreHero record={record} analysis={analysis} onOpenPolicy={openPolicy} />
 
       {Object.keys(analysis.summary.severity_counts).length > 0 && (
         <div className="panel fade-in-up" style={{ marginTop: 16 }}>
@@ -428,23 +508,14 @@ export default function BurpReportDetailPage() {
 
       {analysis.inconsistencies.length > 0 && (
         <div className="panel fade-in-up" style={{ marginTop: 16 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16 }}>Header Inconsistencies</h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {analysis.inconsistencies.map((inc) => (
-              <div key={inc.header}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>
-                  {inc.header} — {inc.configurations.length} configurations detected
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {inc.configurations.map((cfg) => (
-                    <div key={cfg.value} className="field-hint mono" style={{ overflowWrap: "anywhere" }}>
-                      {cfg.value} — {cfg.count} response{cfg.count === 1 ? "" : "s"}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 16 }}>Header Inconsistencies</h3>
+          <p className="field-hint" style={{ marginTop: 0, marginBottom: 14 }}>
+            Headers configured differently across the application — the same header should usually mean the same
+            thing everywhere.
+          </p>
+          {analysis.inconsistencies.map((inc, i) => (
+            <InconsistencyCard key={inc.header} inconsistency={inc} index={i} />
+          ))}
         </div>
       )}
 
@@ -522,6 +593,10 @@ export default function BurpReportDetailPage() {
             </div>
           )}
         </div>
+      )}
+
+      {previewPolicy && (
+        <PolicyPreviewModal policy={previewPolicy} onClose={() => setPreviewPolicy(null)} />
       )}
     </div>
   );

@@ -15,7 +15,6 @@ import { describeDateRange, inDateRange } from "@/lib/filters";
 import { usePersistedState } from "@/lib/usePersistedState";
 import { downloadReportsCsv } from "@/lib/exportCsv";
 import { downloadReportsJson } from "@/lib/exportJson";
-import { downloadBinaryBlob } from "@/lib/download";
 
 function gradeBadgeClass(grade: string): string {
   if (grade === "A" || grade === "B") return "badge-PASS";
@@ -201,17 +200,17 @@ function burpScoreBadgeClass(score: number): string {
   return "badge-FAIL";
 }
 
-/** A separate, simpler list below the main (filterable) scan reports list -
- * Burp imports are a structurally different shape (many endpoints per report,
- * not one target), so they get their own lightweight section here rather
- * than being forced into the existing target/policy/grade filter machinery. */
-function BurpImportsSection() {
+/** Burp imports are a structurally different shape (many endpoints per
+ * report, not one target), so rather than forcing them into the existing
+ * target/policy/grade filter machinery, they get their own tab with a
+ * simpler list. */
+function BurpImportsSection({ onOpenPolicy }: { onOpenPolicy: (policyId: string) => void }) {
   const toast = useToast();
   const [imports, setImports] = useState<BurpImportListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [search, setSearch] = usePersistedState("reports", "burpSearch", "");
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function load() {
@@ -224,6 +223,18 @@ function BurpImportsSection() {
   }
 
   useEffect(load, []);
+
+  const deferredSearch = useDeferredValue(search);
+  const visibleImports = useMemo(() => {
+    const q = deferredSearch.trim().toLowerCase();
+    if (!q) return imports;
+    return imports.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.policy_name ?? "").toLowerCase().includes(q) ||
+        item.source_filename.toLowerCase().includes(q)
+    );
+  }, [imports, deferredSearch]);
 
   function requestDelete(id: string) {
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
@@ -249,69 +260,87 @@ function BurpImportsSection() {
     }
   }
 
-  async function handleExport(id: string) {
-    setExportingId(id);
-    try {
-      const { blob, filename } = await api.exportBurpXlsx(id);
-      downloadBinaryBlob(blob, filename);
-    } catch (e) {
-      toast.show(e instanceof ApiError ? e.message : "Export failed.", "error");
-    } finally {
-      setExportingId(null);
-    }
+  if (loading) {
+    return (
+      <div className="panel">
+        <PolicyCardSkeleton />
+        <PolicyCardSkeleton />
+        <PolicyCardSkeleton />
+      </div>
+    );
   }
 
-  if (loading || imports.length === 0) return null;
-
   return (
-    <div className="panel fade-in-up" style={{ marginTop: 16 }}>
-      <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 16 }}>Burp History Imports</h3>
-      {imports.map((item) => (
-        <div key={item.id} className="policy-card">
-          <div className="policy-card-info">
-            <div style={{ fontWeight: 600 }}>{item.name}</div>
-            <div className="policy-card-meta">
-              {item.policy_name ? `${item.policy_name} (${item.policy_version})` : "Not analyzed yet"}
-              {" · "}
-              {formatDate(item.analyzed_at ?? item.imported_at)}
-              {" · "}
-              {item.responses_analyzed} response{item.responses_analyzed === 1 ? "" : "s"} analyzed
-            </div>
-          </div>
-          <div className="policy-card-actions report-actions">
-            {item.score !== null && (
-              <span className={`badge ${burpScoreBadgeClass(item.score)}`}>{item.score}%</span>
-            )}
-            <div className="report-actions-buttons">
-              <Link className="btn btn-secondary btn-sm" href={`/reports/burp/${item.id}`}>
-                View
-              </Link>
-              {item.status === "analyzed" && (
-                <button
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => handleExport(item.id)}
-                  disabled={exportingId === item.id}
-                >
-                  {exportingId === item.id ? "Exporting…" : "Export Excel"}
-                </button>
-              )}
-              <button
-                className={`btn btn-sm ${confirmingId === item.id ? "btn-danger-solid" : "btn-danger"}`}
-                onClick={() => requestDelete(item.id)}
-                disabled={deletingId === item.id}
-              >
-                {deletingId === item.id ? "Deleting…" : confirmingId === item.id ? "Confirm?" : "Delete"}
-              </button>
-            </div>
-          </div>
+    <>
+      {imports.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <SearchField value={search} onChange={setSearch} placeholder="Search by name, policy or filename…" />
         </div>
-      ))}
-    </div>
+      )}
+      <div className="panel fade-in-up">
+        {imports.length === 0 ? (
+          <p className="empty-state">
+            No Burp History imports yet. Go to <Link href="/scan">Scan → Burp History Import</Link> and
+            it will show up here.
+          </p>
+        ) : visibleImports.length === 0 ? (
+          <p className="empty-state">No Burp History imports match this search.</p>
+        ) : (
+          visibleImports.map((item) => (
+            <div key={item.id} className="policy-card">
+              <div className="policy-card-info">
+                <div style={{ fontWeight: 600 }}>
+                  <Highlight text={item.name} query={deferredSearch} />
+                </div>
+                <div className="policy-card-meta">
+                  {item.policy_name ? (
+                    <>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onOpenPolicy(item.policy_id as string)}
+                      >
+                        <Highlight text={item.policy_name} query={deferredSearch} />
+                      </button>{" "}
+                      <span className="report-version-pill">{item.policy_version}</span>
+                    </>
+                  ) : (
+                    "Not analyzed yet"
+                  )}
+                  {" · "}
+                  {formatDate(item.analyzed_at ?? item.imported_at)}
+                  {" · "}
+                  {item.responses_analyzed} response{item.responses_analyzed === 1 ? "" : "s"} analyzed
+                </div>
+              </div>
+              <div className="policy-card-actions report-actions">
+                {item.score !== null && (
+                  <span className={`badge ${burpScoreBadgeClass(item.score)}`}>{item.score}%</span>
+                )}
+                <div className="report-actions-buttons">
+                  <Link className="btn btn-secondary btn-sm" href={`/reports/burp/${item.id}`}>
+                    View
+                  </Link>
+                  <button
+                    className={`btn btn-sm ${confirmingId === item.id ? "btn-danger-solid" : "btn-danger"}`}
+                    onClick={() => requestDelete(item.id)}
+                    disabled={deletingId === item.id}
+                  >
+                    {deletingId === item.id ? "Deleting…" : confirmingId === item.id ? "Confirm?" : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
   );
 }
 
 export default function ReportsPage() {
   const toast = useToast();
+  const [view, setView] = useState<"scans" | "burp">("scans");
   const [reports, setReports] = useState<ScanReportSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -474,6 +503,19 @@ export default function ReportsPage() {
         saved — not the full response.
       </p>
 
+      <div className="tabs" style={{ marginBottom: 20 }}>
+        <button className={`tab ${view === "scans" ? "active" : ""}`} onClick={() => setView("scans")}>
+          Scan Reports
+        </button>
+        <button className={`tab ${view === "burp" ? "active" : ""}`} onClick={() => setView("burp")}>
+          Burp History
+        </button>
+      </div>
+
+      {view === "burp" ? (
+        <BurpImportsSection onOpenPolicy={openPolicy} />
+      ) : (
+      <>
       {error && <div className="error-box">{error}</div>}
 
       {loading && (
@@ -592,8 +634,8 @@ export default function ReportsPage() {
           )}
         </div>
       )}
-
-      <BurpImportsSection />
+      </>
+      )}
 
       {previewPolicy && (
         <PolicyPreviewModal policy={previewPolicy} onClose={() => setPreviewPolicy(null)} />

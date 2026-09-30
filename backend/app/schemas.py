@@ -862,6 +862,7 @@ class BurpImportListItem(BaseModel):
     name: str
     status: str
     source_filename: str
+    policy_id: str | None = None
     policy_name: str | None = None
     policy_version: str | None = None
     score: float | None = None
