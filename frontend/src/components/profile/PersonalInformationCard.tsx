@@ -30,19 +30,17 @@ function Field({
   return (
     <div className="value-row" style={{ alignItems: "center", flexWrap: "nowrap" }}>
       <span className={`profile-row-icon ${unset ? "is-muted" : ""}`}>{icon}</span>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+      <div style={{ minWidth: 0, fontSize: 15, overflowWrap: "anywhere" }}>
+        <span style={{ color: "var(--text-dim)" }}>{label}:</span>{" "}
         <span
           style={{
-            fontSize: 15,
             fontWeight: 600,
             color: unset ? "var(--text-dim)" : undefined,
             fontStyle: unset ? "italic" : undefined,
-            overflowWrap: "anywhere",
           }}
         >
           {value}
         </span>
-        <span className="field-hint">{label}</span>
       </div>
       {copyValue && (
         <div style={{ marginLeft: "auto" }}>
@@ -203,7 +201,7 @@ export function PersonalInformationCard({
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}>
           <Field icon={<IconUser />} label="Full Name" value={`${profile.first_name} ${profile.last_name}`} />
           <Field icon={<IconMail />} label="Email Address" value={profile.email} copyValue={profile.email} />
           <Field
