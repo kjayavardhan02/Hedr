@@ -1,5 +1,9 @@
 import type {
   ApiErrorBody,
+  BurpAnalyzeRequestPayload,
+  BurpImportDetail,
+  BurpImportListItem,
+  BurpImportSummary,
   ComparisonResponse,
   DashboardSummary,
   ExplainRequestPayload,
@@ -36,10 +40,14 @@ export class ApiError extends Error {
 export const AUTH_EVENT = "hedr:unauthorized";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // A FormData body (file upload) must NOT get a manual Content-Type - the
+  // browser sets one itself, including the multipart boundary fetch computes
+  // from the body. Setting "application/json" here would break the upload.
+  const isFormData = init?.body instanceof FormData;
   const res = await fetch(path, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
   });
@@ -69,6 +77,34 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return undefined as T;
   }
   return (await res.json()) as T;
+}
+
+/** Same error handling as request(), but for an endpoint that returns a
+ * binary file rather than JSON - the filename comes from the server's
+ * Content-Disposition header, not guessed client-side. */
+async function downloadFile(path: string): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetch(path);
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = (await res.json()) as ApiErrorBody;
+      if (typeof body?.detail === "string") message = body.detail;
+    } catch {
+      // ignore - body wasn't JSON
+    }
+    if (res.status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new Event(AUTH_EVENT));
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const utf8Match = /filename\*=UTF-8''([^;]+)/.exec(disposition);
+  const asciiMatch = /filename="([^"]+)"/.exec(disposition);
+  const filename = utf8Match ? decodeURIComponent(utf8Match[1]) : asciiMatch ? asciiMatch[1] : "export.xlsx";
+  const blob = await res.blob();
+  return { blob, filename };
 }
 
 export const api = {
@@ -125,4 +161,15 @@ export const api = {
   getPreferences: () => request<Preferences>("/api/profile/preferences"),
   updatePreferences: (payload: PreferencesUpdatePayload) =>
     request<Preferences>("/api/profile/preferences", { method: "PATCH", body: JSON.stringify(payload) }),
+  importBurpHistory: (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<BurpImportSummary>("/api/burp/import", { method: "POST", body: formData });
+  },
+  analyzeBurpImport: (id: string, payload: BurpAnalyzeRequestPayload) =>
+    request<BurpImportDetail>(`/api/burp/${id}/analyze`, { method: "POST", body: JSON.stringify(payload) }),
+  listBurpImports: () => request<BurpImportListItem[]>("/api/burp"),
+  getBurpImport: (id: string) => request<BurpImportDetail>(`/api/burp/${id}`),
+  deleteBurpImport: (id: string) => request<void>(`/api/burp/${id}`, { method: "DELETE" }),
+  exportBurpXlsx: (id: string) => downloadFile(`/api/burp/${id}/export`),
 };

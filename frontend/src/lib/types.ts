@@ -433,3 +433,160 @@ export interface ExplainResponse {
   recommendations: RecommendationItem[];
   tradeoffs: string;
 }
+
+// ---------------------------------------------------------------------------
+// Burp History Import - a third analysis source alongside URL/raw scans.
+// Every entry is scored by the same policy engine; this is just the shape of
+// the aggregate result across many responses. See backend app/schemas.py's
+// "Burp History Import" section for the source of truth.
+// ---------------------------------------------------------------------------
+
+export interface BurpImportFacets {
+  hosts: string[];
+  methods: string[];
+  status_buckets: string[];
+  content_types: string[];
+}
+
+export interface BurpImportSummary {
+  id: string;
+  name: string;
+  source_filename: string;
+  entries_found: number;
+  parsed_count: number;
+  partial_count: number;
+  failed_count: number;
+  skipped_count: number;
+  facets: BurpImportFacets;
+  imported_at: string;
+}
+
+export interface BurpFiltersPayload {
+  hosts?: string[] | null;
+  methods?: string[] | null;
+  status_buckets?: string[] | null;
+  content_types?: string[] | null;
+  https_only?: boolean;
+  exclude_static?: boolean;
+  deduplicate?: boolean;
+}
+
+export interface BurpAnalyzeRequestPayload {
+  policy_id: string;
+  filters?: BurpFiltersPayload;
+  name?: string;
+}
+
+export type HeaderCoverageStatus = "present" | "missing" | "invalid" | "not_applicable";
+
+export interface BurpHeaderResult {
+  header: string;
+  status: HeaderCoverageStatus;
+  actual_value: string | null;
+  expected_value: string | null;
+  severity: SeverityLevel | null;
+}
+
+export interface BurpEndpointAnalysis {
+  domain: string;
+  path: string;
+  raw_url: string;
+  method: string;
+  status_code: number | null;
+  content_type: string | null;
+  header_results: BurpHeaderResult[];
+  policy_score: number;
+  has_findings: boolean;
+}
+
+export interface BurpHostSummaryRow {
+  host: string;
+  responses: number;
+  unique_paths: number;
+  score: number;
+}
+
+export interface BurpHeaderCoverageRow {
+  header: string;
+  present: number;
+  missing: number;
+  invalid: number;
+  not_applicable: number;
+  coverage: number;
+}
+
+export interface BurpFindingGroup {
+  header: string;
+  status: "missing" | "invalid";
+  severity: SeverityLevel;
+  affected_count: number;
+  affected_endpoints: string[];
+}
+
+export interface BurpInconsistencyConfig {
+  value: string;
+  count: number;
+  affected_endpoints: string[];
+}
+
+export interface BurpHeaderInconsistency {
+  header: string;
+  configurations: BurpInconsistencyConfig[];
+}
+
+export interface BurpImportIssue {
+  index: number;
+  url: string | null;
+  host: string | null;
+  path: string | null;
+  status: "parsed" | "partial" | "failed" | "skipped";
+  reason: string | null;
+}
+
+export interface BurpAnalysisSummary {
+  responses_analyzed: number;
+  unique_hosts: number;
+  unique_paths: number;
+  overall_score: number;
+  responses_with_findings: number;
+  severity_counts: Record<string, number>;
+}
+
+export interface BurpAnalysisResult {
+  summary: BurpAnalysisSummary;
+  host_summary: BurpHostSummaryRow[];
+  header_coverage: BurpHeaderCoverageRow[];
+  findings: BurpFindingGroup[];
+  inconsistencies: BurpHeaderInconsistency[];
+  endpoints: BurpEndpointAnalysis[];
+  import_issues: BurpImportIssue[];
+}
+
+export interface BurpImportListItem {
+  id: string;
+  name: string;
+  status: string;
+  source_filename: string;
+  policy_name: string | null;
+  policy_version: string | null;
+  score: number | null;
+  responses_analyzed: number;
+  responses_skipped: number;
+  parse_failures: number;
+  imported_at: string;
+  analyzed_at: string | null;
+}
+
+export interface BurpImportDetail {
+  id: string;
+  name: string;
+  status: string;
+  source_filename: string;
+  policy_id: string | null;
+  policy_name: string | null;
+  policy_version: string | null;
+  filters: BurpFiltersPayload | null;
+  imported_at: string;
+  analyzed_at: string | null;
+  analysis: BurpAnalysisResult | null;
+}

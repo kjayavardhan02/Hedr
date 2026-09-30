@@ -225,8 +225,9 @@ select:focus {
 }
 
 .sidebar .brand {
-  padding: 4px 6px 0;
-  margin-bottom: 18px;
+  margin: 0 -16px 18px;
+  padding: 4px 22px 14px;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .sidebar-profile {
@@ -2883,6 +2884,11 @@ a {
   margin-top: 4px;
 }
 
+/* A 5th severity tier (Info) alongside the usual Critical/High/Medium/Low. */
+.findings-grid-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .dashboard-table-wrap {
   width: 100%;
   overflow: hidden;
@@ -3819,4 +3825,112 @@ a {
 .advisory-rec {
   margin-top: 4px;
   color: var(--text);
+}
+
+/* --- Burp History Import -------------------------------------------------- */
+
+.burp-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 20px;
+  border: 2px dashed var(--panel-border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.burp-dropzone-active {
+  border-color: var(--accent);
+  background: rgba(255, 122, 26, 0.06);
+}
+
+.burp-facet-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+}
+
+/* A checkbox re-imagined as a toggleable pill - see the Chip component in
+   BurpHistoryImport.tsx. Mirrors .rf-grade's on/off/hover language so filter
+   controls read the same way across the app. */
+.burp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.burp-chip:hover {
+  border-color: #444;
+  color: var(--text);
+}
+
+.burp-chip-on,
+.burp-chip-on:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(255, 122, 26, 0.12);
+}
+
+.burp-chip-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  border: 1.5px solid color-mix(in srgb, var(--text-dim) 70%, transparent);
+  color: transparent;
+  background: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.burp-chip-on .burp-chip-check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a0a;
+}
+
+.burp-chip-check svg {
+  width: 11px;
+  height: 11px;
+}
+
+.burp-stat-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.burp-stat-row .profile-stat {
+  flex: 1;
+}
+
+/* A small read-only endpoint identifier tag - the expanded body of a
+   FindingGroupCard/inconsistency configuration lists these instead of a
+   plain comma-separated string. */
+.endpoint-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
 }

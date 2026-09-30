@@ -10,7 +10,13 @@ export function todayStamp(): string {
 }
 
 export function downloadBlob(content: string, filename: string, type: string): void {
-  const blob = new Blob([content], { type });
+  downloadBinaryBlob(new Blob([content], { type }), filename);
+}
+
+/** Same trigger-a-download mechanism as downloadBlob, but for a Blob that
+ * already came from a server response (e.g. a generated .xlsx) rather than
+ * client-side content. */
+export function downloadBinaryBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

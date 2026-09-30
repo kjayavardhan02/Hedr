@@ -5,6 +5,17 @@ export function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+/** Mirrors app.core.scoring.grade_for_score on the backend - needed
+ * client-side for aggregate scores (e.g. a Burp History overall score) that
+ * never come with a letter grade of their own from the API. */
+export function gradeForScore(score: number): string {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}
+
 /** A rough 0-4 strength read for a candidate password, purely as a visual
  * nudge - never itself an accept/reject rule (the actual minimum length is
  * enforced separately, both here and on the backend). Shared by signup and

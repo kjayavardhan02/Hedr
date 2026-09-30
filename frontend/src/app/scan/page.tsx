@@ -21,6 +21,7 @@ import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { Spinner } from "@/components/Spinner";
 import { PolicySelect } from "@/components/PolicySelect";
+import { BurpHistoryImport } from "@/components/BurpHistoryImport";
 
 
 const EXAMPLE_RAW = `HTTP/1.1 200 OK
@@ -33,7 +34,7 @@ X-Frame-Options: SAMEORIGIN`;
 
 export default function ScanPage() {
   const { user } = useAuth();
-  const [inputMode, setInputMode] = useState<"url" | "raw">("url");
+  const [inputMode, setInputMode] = useState<"url" | "raw" | "burp">("url");
   const [url, setUrl] = useState("");
   const [rawResponse, setRawResponse] = useState("");
   const [targetName, setTargetName] = useState("");
@@ -75,6 +76,7 @@ export default function ScanPage() {
   }, [user?.default_policy_id]);
 
   async function handleScan() {
+    if (inputMode === "burp") return; // Burp History has its own Analyze flow, never this button.
     setError(null);
     setResult(null);
 
@@ -164,9 +166,17 @@ export default function ScanPage() {
           >
             Raw HTTP Response
           </button>
+          <button
+            className={`tab ${inputMode === "burp" ? "active" : ""}`}
+            onClick={() => setInputMode("burp")}
+          >
+            Burp History Import
+          </button>
         </div>
 
-        {inputMode === "url" ? (
+        {inputMode === "burp" ? (
+          <BurpHistoryImport />
+        ) : inputMode === "url" ? (
           <div className="field fade-in" key="url-field">
             <label>Target URL</label>
             <input
@@ -236,6 +246,8 @@ export default function ScanPage() {
         )}
       </div>
 
+      {inputMode !== "burp" && (
+      <>
       <div className="panel panel-raised">
         <div className="tabs">
           <button
@@ -328,6 +340,8 @@ export default function ScanPage() {
 
           {result.csp_finding && <CSPPanel csp={result.csp_finding} />}
         </div>
+      )}
+      </>
       )}
     </div>
   );
