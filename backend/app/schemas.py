@@ -259,6 +259,7 @@ class PolicyOut(BaseModel):
 class ScanSource(str, Enum):
     url = "url"
     raw = "raw"
+    burp = "burp"
 
 
 class ScanRequest(BaseModel):
@@ -702,3 +703,190 @@ class ExplainResponse(BaseModel):
     why_it_matters: str
     recommendations: list[RecommendationItem]
     tradeoffs: str
+
+
+# ---------------------------------------------------------------------------
+# Burp History Import
+#
+# Burp History is a third analysis SOURCE, not a separate security-analysis
+# engine (see Feature Docs/hedr-burp-history-import-feature.md, section 36):
+# each surviving entry is run through the exact same app.core.policy_engine
+# used by a normal scan. Everything here is the shape of that reuse, plus the
+# aggregation layer needed to summarize hundreds/thousands of per-response
+# results instead of showing them one at a time.
+# ---------------------------------------------------------------------------
+
+BurpEntryStatus = Literal["parsed", "partial", "failed", "skipped"]
+HeaderCoverageStatus = Literal["present", "missing", "invalid", "not_applicable"]
+
+
+class BurpImportFacets(BaseModel):
+    """Distinct values seen across the parsed entries, so the frontend can
+    render filter checkboxes without guessing what's actually in the file."""
+
+    hosts: list[str] = Field(default_factory=list)
+    methods: list[str] = Field(default_factory=list)
+    status_buckets: list[str] = Field(default_factory=list)
+    content_types: list[str] = Field(default_factory=list)
+
+
+class BurpImportSummary(BaseModel):
+    """Response of POST /api/burp/import - the pre-analysis summary shown
+    before the user picks filters and a policy (spec section 11)."""
+
+    id: str
+    name: str
+    source_filename: str
+    entries_found: int
+    parsed_count: int
+    partial_count: int
+    failed_count: int
+    skipped_count: int
+    facets: BurpImportFacets
+    imported_at: datetime
+
+
+class BurpFiltersIn(BaseModel):
+    """`None` on a list field means "no filter on this dimension" - an empty
+    list would exclude everything, which is never what an unset filter
+    checkbox group means."""
+
+    hosts: list[str] | None = None
+    methods: list[str] | None = None
+    status_buckets: list[str] | None = None
+    content_types: list[str] | None = None
+    https_only: bool = False
+    exclude_static: bool = False
+    deduplicate: bool = True
+
+
+class BurpAnalyzeRequest(BaseModel):
+    policy_id: str
+    filters: BurpFiltersIn = Field(default_factory=BurpFiltersIn)
+    name: str | None = Field(default=None, max_length=100)
+
+
+class HeaderResultOut(BaseModel):
+    header: str
+    status: HeaderCoverageStatus
+    actual_value: str | None = None
+    expected_value: str | None = None
+    severity: Literal["low", "medium", "high", "critical", "info"] | None = None
+
+
+class EndpointAnalysisOut(BaseModel):
+    domain: str
+    path: str
+    raw_url: str
+    method: str
+    status_code: int | None
+    content_type: str | None
+    header_results: list[HeaderResultOut]
+    policy_score: float
+    has_findings: bool
+
+
+class HostSummaryRow(BaseModel):
+    host: str
+    responses: int
+    unique_paths: int
+    score: float
+
+
+class HeaderCoverageRow(BaseModel):
+    header: str
+    present: int
+    missing: int
+    invalid: int
+    not_applicable: int
+    coverage: float  # percent, present / (present + missing + invalid)
+
+
+class FindingGroupOut(BaseModel):
+    header: str
+    status: Literal["missing", "invalid"]
+    severity: Literal["low", "medium", "high", "critical", "info"]
+    affected_count: int
+    # Capped preview of affected endpoints - `affected_count` is the true total.
+    affected_endpoints: list[str]
+
+
+class InconsistencyConfigOut(BaseModel):
+    # The actual header value shared by every endpoint in this group.
+    value: str
+    count: int
+    affected_endpoints: list[str]
+
+
+class HeaderInconsistencyOut(BaseModel):
+    header: str
+    configurations: list[InconsistencyConfigOut]
+
+
+class ImportIssueOut(BaseModel):
+    index: int
+    url: str | None
+    host: str | None
+    path: str | None
+    status: BurpEntryStatus
+    reason: str | None
+
+
+class BurpAnalysisSummaryOut(BaseModel):
+    responses_analyzed: int
+    unique_hosts: int
+    unique_paths: int
+    overall_score: float
+    responses_with_findings: int
+    severity_counts: dict[str, int]
+
+
+class BurpAnalysisResult(BaseModel):
+    """The full normalized analysis result - built once by
+    app.core.burp_aggregation, then reused as-is for the UI, stored as the
+    report, and (in a later phase) fed to the Excel generator. See spec
+    section 33: "Analyze once, store normalized results, generate multiple
+    views from the same result."."""
+
+    summary: BurpAnalysisSummaryOut
+    host_summary: list[HostSummaryRow]
+    header_coverage: list[HeaderCoverageRow]
+    findings: list[FindingGroupOut]
+    inconsistencies: list[HeaderInconsistencyOut]
+    endpoints: list[EndpointAnalysisOut]
+    import_issues: list[ImportIssueOut]
+
+
+class BurpImportListItem(BaseModel):
+    id: str
+    name: str
+    status: str
+    source_filename: str
+    policy_name: str | None = None
+    policy_version: str | None = None
+    score: float | None = None
+    responses_analyzed: int
+    responses_skipped: int
+    parse_failures: int
+    imported_at: datetime
+    analyzed_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class BurpImportOut(BaseModel):
+    id: str
+    name: str
+    status: str
+    source_filename: str
+    policy_id: str | None = None
+    policy_name: str | None = None
+    policy_version: str | None = None
+    filters: BurpFiltersIn | None = None
+    imported_at: datetime
+    analyzed_at: datetime | None = None
+    analysis: BurpAnalysisResult | None = None
+
+    class Config:
+        from_attributes = True

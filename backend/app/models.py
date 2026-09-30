@@ -153,3 +153,46 @@ class ScanReport(Base):
         plus one more if CSP was checked (CSP isn't in `findings`, it has
         its own dedicated finding)."""
         return len(self.findings or []) + (1 if self.csp_finding else 0)
+
+
+class BurpImport(Base):
+    """A Burp Suite HTTP-history import: another analysis SOURCE, not a
+    separate report type in spirit - each surviving entry is scored by the
+    same app.core.policy_engine used by a normal scan, then rolled up here.
+
+    One row covers the whole lifecycle (see hedr-burp-history-import-feature.md
+    section 30): `status` is "parsed" right after upload (before the user has
+    picked filters/policy) and becomes "analyzed" once /analyze has run.
+    `parsed_entries` lets /analyze run again with different filters without
+    re-uploading the file - it holds only method/URL/host/path/status/response
+    headers per entry (see app.core.burp_import), never bodies, cookies, or
+    Authorization values."""
+
+    __tablename__ = "burp_imports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    source_filename: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="parsed")  # parsed | analyzed
+
+    # List[BurpEntry-shaped dicts] from app.core.burp_import, as parsed at
+    # upload time - re-filtered/re-scored on every /analyze call.
+    parsed_entries: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    entries_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # Populated once analyzed; null before the first /analyze call.
+    policy_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    policy_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    filters: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # BurpAnalysisResult-shaped dict (see schemas.py) - the single normalized
+    # result the UI, Reports, and (later) Excel export all read from.
+    analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    responses_analyzed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    responses_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    parse_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    imported_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, index=True)
+    analyzed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
