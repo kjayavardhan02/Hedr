@@ -105,32 +105,20 @@ export default function EditPolicyPage() {
         {readOnly ? "View Baseline" : "Edit Policy"}
         <span className="pill">v{policy.version}</span>
       </h1>
-      {readOnly && (
-        <p className="field-hint" style={{ marginBottom: 20 }}>
-          Baseline policies are read-only.{" "}
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ marginLeft: 4 }}
-            onClick={() => router.push(`/policies/new?template=${policy.id}`)}
-          >
-            Use as template
-          </button>
+      <div className="policy-action-row">
+        <p className="field-hint">
+          {readOnly
+            ? "Baseline policies are read-only. Use one as a template to create your own editable copy."
+            : "Update the headers you want to enforce, the values you expect, and whether each is required. Saving creates a new version."}
         </p>
-      )}
-
-      {!readOnly && (
-        <p className="field-hint" style={{ marginBottom: 20 }}>
-          Need a variant of this policy?{" "}
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ marginLeft: 4 }}
-            onClick={() => router.push(`/policies/new?template=${policy.id}`)}
-          >
-            Clone
-          </button>{" "}
-          Copies the saved version, not unsaved edits.
-        </p>
-      )}
+        <button
+          className="btn btn-sm"
+          title={readOnly ? undefined : "Copies the saved version, not unsaved edits."}
+          onClick={() => router.push(`/policies/new?template=${policy.id}`)}
+        >
+          {readOnly ? "Use as template" : "Clone"}
+        </button>
+      </div>
 
       {error && <div className="error-box">{error}</div>}
 
@@ -170,9 +158,10 @@ export default function EditPolicyPage() {
                   <label>Expected value</label>
                   <input value={h.expected_value} disabled />
                 </div>
-                <div className="field field-fixed">
-                  <label>Required</label>
-                  <Chip checked={h.required} onToggle={() => {}} disabled />
+                <div className="field field-chip">
+                  <Chip checked={h.required} onToggle={() => {}} disabled>
+                    Required
+                  </Chip>
                 </div>
               </div>
             ))}

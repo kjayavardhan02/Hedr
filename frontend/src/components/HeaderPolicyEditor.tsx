@@ -94,9 +94,10 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
               </>
             )}
           </div>
-          <div className="field field-fixed">
-            <label>Required</label>
-            <Chip checked={h.required} onToggle={() => updateRow(i, { required: !h.required })} />
+          <div className="field field-chip">
+            <Chip checked={h.required} onToggle={() => updateRow(i, { required: !h.required })}>
+              Required
+            </Chip>
           </div>
           <button
             type="button"
