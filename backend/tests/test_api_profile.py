@@ -196,7 +196,7 @@ class TestPreferences:
         assert resp.json()["theme"] == "light"
         assert client.get("/api/profile/preferences").json()["theme"] == "light"
 
-    @pytest.mark.parametrize("theme", ["cyberpunk", "terminal", "midnight", "arctic", "offwhite"])
+    @pytest.mark.parametrize("theme", ["cyberpunk", "terminal", "midnight", "arctic", "offwhite", "dracula", "forest", "sunset", "lavender"])
     def test_can_set_named_theme(self, auth_client, theme):
         client, _ = auth_client
         resp = client.patch("/api/profile/preferences", json={"theme": theme})

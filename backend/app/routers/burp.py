@@ -174,7 +174,10 @@ def export_burp_import(
     if record.analysis is None:
         raise HTTPException(status_code=409, detail="This import hasn't been analyzed yet.")
 
-    workbook_bytes = build_workbook(record)
+    # The policy the import was analyzed against, for the workbook's Policy
+    # sheet - it may have been deleted or edited since (build_workbook copes).
+    policy = db.get(models.Policy, record.policy_id) if record.policy_id else None
+    workbook_bytes = build_workbook(record, policy)
     filename = export_filename(record)
     # ASCII fallback for older clients, plus the UTF-8 filename* form so a
     # report name with non-ASCII characters still downloads with the right name.

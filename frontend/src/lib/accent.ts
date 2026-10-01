@@ -39,14 +39,18 @@ export const ACCENT_COLORS: { id: Exclude<AccentColor, "default">; name: string;
 const ACCENT_CHOICES_BY_THEME: Record<Theme, AccentColor[]> = {
   dark: ["default", "blue", "purple"],
   light: ["default", "blue", "green"],
-  offwhite: ["default", "blue", "pink"],
+  offwhite: ["default", "blue", "pink", "orange"],
   cyberpunk: ["default", "purple", "pink"],
   terminal: ["default", "cyan", "orange"],
   midnight: ["default", "blue", "pink"],
   arctic: ["default", "blue", "purple"],
+  dracula: ["default", "pink", "cyan"],
+  forest: ["default", "green", "cyan"],
+  sunset: ["default", "orange", "purple"],
+  lavender: ["default", "pink", "blue"],
 };
 
-const LIGHT_FAMILY_THEMES = ["light", "offwhite", "arctic"];
+const LIGHT_FAMILY_THEMES = ["light", "offwhite", "arctic", "lavender"];
 
 function isAccentColor(value: string | null): value is AccentColor {
   return value === "default" || (value !== null && value in ACCENT_VALUES);

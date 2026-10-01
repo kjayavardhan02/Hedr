@@ -5,7 +5,7 @@ import { ACCENT_INIT_SNIPPET, applyAccent, readStoredAccent } from "./accent";
 // with Default (Hedr's own default appearance) once themes had names of
 // their own. A legacy stored "system" value is coerced to "dark" both here
 // (readStoredTheme/THEME_INIT_SCRIPT) and on the backend (schemas.py).
-export type Theme = "dark" | "light" | "offwhite" | "cyberpunk" | "terminal" | "midnight" | "arctic";
+export type Theme = "dark" | "light" | "offwhite" | "cyberpunk" | "terminal" | "midnight" | "arctic" | "dracula" | "forest" | "sunset" | "lavender";
 
 const STORAGE_KEY = "hedr.theme";
 
@@ -20,6 +20,10 @@ const THEME_VALUES: readonly Theme[] = [
   "terminal",
   "midnight",
   "arctic",
+  "dracula",
+  "forest",
+  "sunset",
+  "lavender",
 ];
 
 /** Metadata for every named theme, driving the theme-card picker in
@@ -33,6 +37,10 @@ export const THEMES: { id: Theme; name: string; description: string }[] = [
   { id: "terminal", name: "Terminal", description: "Security-terminal green on black." },
   { id: "midnight", name: "Midnight", description: "Deep navy with a cool purple accent." },
   { id: "arctic", name: "Arctic", description: "Cool white with a cyan accent." },
+  { id: "dracula", name: "Dracula", description: "Charcoal purple with a soft violet accent." },
+  { id: "forest", name: "Forest", description: "Deep green on near-black with amber highlights." },
+  { id: "sunset", name: "Sunset", description: "Warm dusk tones with a coral accent." },
+  { id: "lavender", name: "Lavender", description: "Soft light purple with a violet accent." },
 ];
 
 function isTheme(value: string | null): value is Theme {

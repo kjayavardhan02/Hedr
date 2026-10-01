@@ -73,9 +73,9 @@
    darker-for-contrast-on-white values, already proven readable there. */
 [data-theme="offwhite"] {
   color-scheme: light;
-  --bg: #f6f5f2;
-  --panel: #ffffff;
-  --panel-border: #e2e0da;
+  --bg: #ede9df;
+  --panel: #f9f7f1;
+  --panel-border: #d8d3c5;
   --text: #2b2a27;
   --text-dim: #706c63;
   --accent: #5b7a63;
@@ -84,8 +84,8 @@
   --fail: #c93a3a;
   --warn: #a06a10;
   --info: #5b7a63;
-  --input-bg: #f3f2ee;
-  --raised-top: #ffffff;
+  --input-bg: #e8e4d9;
+  --raised-top: #fcfbf7;
 }
 
 /* Neon cyan on near-black purple, Hedr's signature theme. Pass/fail/warn
@@ -161,6 +161,79 @@
   --warn: #a06a10;
   --info: #0891c2;
   --input-bg: #eef6f9;
+  --raised-top: #ffffff;
+}
+
+/* Dracula-inspired: charcoal-purple with a pink/purple accent. */
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --bg: #1e1f29;
+  --panel: #282a36;
+  --panel-border: #44475a;
+  --text: #f8f8f2;
+  --text-dim: #9aa0bd;
+  --accent: #bd93f9;
+  --accent-dim: #7c5cc4;
+  --pass: #50fa7b;
+  --fail: #ff5555;
+  --warn: #f1fa8c;
+  --info: #8be9fd;
+  --input-bg: #21222c;
+  --raised-top: #343746;
+}
+
+/* Deep forest green on near-black with a warm amber accent. */
+[data-theme="forest"] {
+  color-scheme: dark;
+  --bg: #0b130e;
+  --panel: #121f17;
+  --panel-border: #263a2d;
+  --text: #e7f1e9;
+  --text-dim: #86a08f;
+  --accent: #e0b04a;
+  --accent-dim: #a37f2a;
+  --pass: #4cc97a;
+  --fail: #ef5b5b;
+  --warn: #f0a93b;
+  --info: #5fc9b0;
+  --input-bg: #0e1812;
+  --raised-top: #1a2c21;
+}
+
+/* Warm dusk: aubergine-brown dark with a coral/rose accent. */
+[data-theme="sunset"] {
+  color-scheme: dark;
+  --bg: #170d14;
+  --panel: #231622;
+  --panel-border: #402a3d;
+  --text: #fbeff0;
+  --text-dim: #ad919d;
+  --accent: #ff7a8a;
+  --accent-dim: #b84f5d;
+  --pass: #46d38a;
+  --fail: #ff4d6a;
+  --warn: #ffb347;
+  --info: #ffa06b;
+  --input-bg: #1b101a;
+  --raised-top: #2f1e2e;
+}
+
+/* Soft light lavender with a violet accent - same "darker status colors for
+   contrast on white" treatment as the other light themes. */
+[data-theme="lavender"] {
+  color-scheme: light;
+  --bg: #f4f1fa;
+  --panel: #ffffff;
+  --panel-border: #e1dbef;
+  --text: #25203a;
+  --text-dim: #6e6786;
+  --accent: #7c3aed;
+  --accent-dim: #5b21b6;
+  --pass: #188a52;
+  --fail: #c93a3a;
+  --warn: #a06a10;
+  --info: #7c3aed;
+  --input-bg: #f1eef8;
   --raised-top: #ffffff;
 }
 

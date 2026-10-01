@@ -56,7 +56,7 @@ def _load(xlsx_bytes: bytes):
 def test_workbook_has_expected_sheets_in_order():
     record = FakeRecord(_sample_analysis())
     wb = _load(build_workbook(record))
-    assert wb.sheetnames == ["Endpoint Analysis", "Summary", "Header Coverage", "Findings"]
+    assert wb.sheetnames == ["Summary", "Policy", "Endpoint Analysis", "Header Coverage", "Findings"]
 
 
 def test_endpoint_analysis_sheet_content():
@@ -159,3 +159,68 @@ def test_export_filename_falls_back_when_name_is_empty():
     record = FakeRecord(_sample_analysis(), name="///")
     filename = export_filename(record)
     assert filename == "Burp History - Security Header Analysis.xlsx"
+
+
+def test_summary_reports_passed_and_failed_counts_and_explains_labels():
+    record = FakeRecord(_sample_analysis())
+    wb = _load(build_workbook(record))
+    ws = wb["Summary"]
+    values = {row[0]: row[1] for row in ws.iter_rows(values_only=True) if row[0]}
+    # a.com passes HSTS (CSP N/A? it is text/html so CSP is missing there too) - just check shape.
+    assert values["Responses Passed"].endswith(" of 2")
+    assert values["Responses Failed"].endswith(" of 2")
+    assert " of " in values["Header Checks Passed"]
+    # The label legend sits on the right-hand side (columns D-E).
+    legend = {row[3]: row[4] for row in ws.iter_rows(values_only=True) if len(row) > 4 and row[3]}
+    for label in ("Present", "Missing", "Invalid", "Not Applicable"):
+        assert legend[label]
+
+
+def test_policy_sheet_lists_the_full_saved_policy():
+    from types import SimpleNamespace
+
+    policy = SimpleNamespace(
+        version=1,
+        description="Strict transport",
+        headers=[HSTS_HEADER.model_dump()],
+        csp_policy=CSPPolicy(required=True, required_directives=["default-src"]).model_dump(),
+    )
+    record = FakeRecord(_sample_analysis())
+    wb = _load(build_workbook(record, policy))  # type: ignore[arg-type]
+    ws = wb["Policy"]
+    flat = [c for row in ws.iter_rows(values_only=True) for c in row if c is not None]
+    assert "Strict-Transport-Security" in flat
+    assert "max-age=31536000" in flat
+    assert "Strict transport" in flat
+    assert "default-src" in flat
+
+
+def test_policy_sheet_falls_back_when_policy_missing_or_edited():
+    from types import SimpleNamespace
+
+    record = FakeRecord(_sample_analysis())
+    for policy in (None, SimpleNamespace(version=9, description="", headers=[], csp_policy=None)):
+        wb = _load(build_workbook(record, policy))  # type: ignore[arg-type]
+        flat = [c for row in wb["Policy"].iter_rows(values_only=True) for c in row if c is not None]
+        assert "Strict-Transport-Security" in flat
+
+
+def test_table_cells_are_centre_aligned():
+    record = FakeRecord(_sample_analysis())
+    wb = _load(build_workbook(record))
+    for name in ("Endpoint Analysis", "Header Coverage", "Findings"):
+        ws = wb[name]
+        for row in ws.iter_rows():
+            for cell in row:
+                assert cell.alignment.horizontal == "center", (name, cell.coordinate)
+
+
+def test_summary_dates_are_human_readable():
+    import datetime
+
+    when = datetime.datetime(2026, 10, 1, 14, 35, tzinfo=datetime.timezone.utc)
+    record = FakeRecord(_sample_analysis(), imported_at=when, analyzed_at=when)
+    ws = _load(build_workbook(record))["Summary"]
+    values = {row[0]: row[1] for row in ws.iter_rows(values_only=True) if row[0]}
+    assert values["Imported At"] == "01 Oct 2026, 02:35 PM UTC"
+    assert values["Analyzed At"] == "01 Oct 2026, 02:35 PM UTC"

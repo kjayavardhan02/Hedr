@@ -10,7 +10,11 @@ import type { Policy } from "@/lib/types";
 import { ACCENT_COLORS, applyAccent, getAccentChoicesForTheme, type AccentColor } from "@/lib/accent";
 import { applyTheme, THEMES, type Theme } from "@/lib/theme";
 import {
+  IconBat,
   IconBolt,
+  IconFlower,
+  IconLeaf,
+  IconSunset,
   IconCheck,
   IconMoon,
   IconPage,
@@ -29,6 +33,10 @@ const THEME_ICONS: Record<Theme, () => React.JSX.Element> = {
   terminal: IconTerminalWindow,
   midnight: IconStars,
   arctic: IconSnowflake,
+  dracula: IconBat,
+  forest: IconLeaf,
+  sunset: IconSunset,
+  lavender: IconFlower,
 };
 
 function ruleSummary(policy: Policy): string {

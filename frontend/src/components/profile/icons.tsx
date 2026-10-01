@@ -193,6 +193,38 @@ export function IconSnowflake() {
   );
 }
 
+export function IconBat() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 8c1-1.5 2-2.5 3-3l.5 2.5C17 8 19 8 21 7c-.5 3-1.5 6-4 7.5L15 13l-1.5 4L12 15.5 10.5 17 9 13l-2 1.5C4.5 13 3.5 10 3 7c2 1 4 1 5.5-.5L9 4c1 .5 2 1.5 3 4Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconLeaf() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14M5 19c3-4 6-7 10-9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconSunset() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M3 18h18M7 18a5 5 0 0 1 10 0M12 7v3M5.6 10.6l1.8 1.8M18.4 10.6l-1.8 1.8M3 14h2M19 14h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function IconFlower() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M12 10c-2-1-2-5 0-6 2 1 2 5 0 6ZM14 12c1-2 5-2 6 0-1 2-5 2-6 0ZM12 14c2 1 2 5 0 6-2-1-2-5 0-6ZM10 12c-1 2-5 2-6 0 1-2 5-2 6 0Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconCheck() {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">

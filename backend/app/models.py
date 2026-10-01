@@ -58,7 +58,7 @@ class User(Base):
     # like ScanReport.policy_id, not a ForeignKey - deleting that policy just
     # means this quietly stops resolving to anything, checked where it's read.
     default_policy_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    # "dark" | "light" | "offwhite" | "cyberpunk" | "terminal" | "midnight" | "arctic".
+    # "dark" | "light" | "offwhite" | "cyberpunk" | "terminal" | "midnight" | "arctic" | "dracula" | "forest" | "sunset" | "lavender".
     # Null (unset) behaves as "dark" - Hedr's original theme (shown to users as
     # "Default") - so an existing account's appearance never changes on its
     # own just because this column now exists. A legacy "system" value (that

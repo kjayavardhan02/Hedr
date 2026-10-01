@@ -10,7 +10,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 # Single source of truth for every valid theme value, used wherever `theme`
 # appears (UserOut, ProfileOut, PreferencesOut, PreferencesUpdate) so the
 # allowed set can't drift out of sync between them.
-ThemeName = Literal["dark", "light", "offwhite", "cyberpunk", "terminal", "midnight", "arctic"]
+ThemeName = Literal["dark", "light", "offwhite", "cyberpunk", "terminal", "midnight", "arctic", "dracula", "forest", "sunset", "lavender"]
 
 # Same idea for the (independent - see spec) accent-color preference. Not
 # every id is offered for every theme in the UI (each theme curates a subset
