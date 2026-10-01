@@ -1,19 +1,44 @@
 """Feature 12: target type & header applicability."""
 import pytest
 
-from app.core.applicability import build_breakdown, check_applicability
+from app.core.applicability import BROWSER_DOCUMENT_HEADER_NAMES, build_breakdown, check_applicability, describe_target_types
 from app.core.policy_engine import run_scan
 from app.schemas import CSPPolicy, PolicyHeaderIn, ScanSource, Status, TargetType
 
 WEB = TargetType.WEB_APPLICATION
 REST = TargetType.REST_API
 GATEWAY = TargetType.API_GATEWAY
+CUSTOM = TargetType.CUSTOM
 
 
 def _check(header, *, target_type=WEB, is_https=True, content_type="text/html", present=False):
     return check_applicability(
         header, target_type=target_type, is_https=is_https, content_type=content_type, header_present=present
     )
+
+
+class TestCustomTargetType:
+    @pytest.mark.parametrize(
+        "header",
+        [*BROWSER_DOCUMENT_HEADER_NAMES, "Strict-Transport-Security", "Access-Control-Allow-Origin", "X-Custom"],
+    )
+    def test_nothing_is_automatically_not_applicable(self, header):
+        # JSON response over plain HTTP: every other type would skip several of these.
+        assert _check(header, target_type=CUSTOM, is_https=False, content_type="application/json").applicable
+
+    def test_scan_checks_every_policy_header_like_before_target_types(self):
+        headers = {"content-type": "application/json", "x-content-type-options": "nosniff"}
+        result = _scan(headers, [XCTO, XFO, HSTS], target_type=CUSTOM, target="http://api.example.com")
+        assert [f.applicable for f in result.findings] == [True, True, True]
+        assert result.breakdown.not_applicable == 0
+        assert result.breakdown.failed == 2  # X-Frame-Options and HSTS count as missing
+        assert result.target_type == CUSTOM
+
+    def test_csp_is_evaluated_for_custom_even_on_json(self):
+        result = _scan(
+            {"content-type": "application/json"}, [], target_type=CUSTOM, csp_policy=CSPPolicy(required=True)
+        )
+        assert result.csp_finding.applicable is True
 
 
 class TestRules:
@@ -207,7 +232,7 @@ class TestApi:
         body = _post_scan(client).json()
         assert body["target_type"] == "web_application"
 
-    @pytest.mark.parametrize("value", ["web_application", "rest_api", "api_gateway"])
+    @pytest.mark.parametrize("value", ["web_application", "rest_api", "api_gateway", "custom"])
     def test_valid_target_types_accepted(self, auth_client, value):
         client, _ = auth_client
         resp = _post_scan(client, target_type=value)
@@ -315,3 +340,46 @@ class TestComparison:
         comparison = client.get(f"/api/reports/{latest['id']}/comparison").json()
         assert comparison["target_type_changed"] is False
         assert comparison["changes"]["applicability_changes"] == []
+
+
+class TestTargetTypeCatalog:
+    def test_endpoint_lists_every_type_with_its_na_headers(self, auth_client):
+        client, _ = auth_client
+        resp = client.get("/api/scan/target-types")
+        assert resp.status_code == 200
+        by_id = {t["id"]: t for t in resp.json()}
+        assert set(by_id) == {"web_application", "rest_api", "api_gateway", "custom"}
+        assert by_id["custom"]["always_not_applicable"] == []
+        assert by_id["custom"]["sometimes_not_applicable"] == []
+        assert by_id["web_application"]["always_not_applicable"] == []
+        assert "Content-Security-Policy" in by_id["rest_api"]["always_not_applicable"]
+        assert by_id["rest_api"]["always_not_applicable"] == by_id["api_gateway"]["always_not_applicable"]
+        assert all(t["label"] and t["description"] for t in by_id.values())
+
+    def test_endpoint_requires_auth(self, client):
+        assert client.get("/api/scan/target-types").status_code == 401
+
+    def test_the_listed_always_na_headers_really_are_na(self):
+        """The UI shows these lists; they must match what the engine does."""
+        for info in describe_target_types():
+            for header in info.always_not_applicable:
+                for content_type in ("text/html", "application/json", None):
+                    result = _check(header, target_type=info.id, content_type=content_type)
+                    assert not result.applicable, (info.id, header)
+            # ...and nothing else in the browser-header family is silently N/A.
+            for header in set(BROWSER_DOCUMENT_HEADER_NAMES) - set(info.always_not_applicable):
+                if info.id == WEB:
+                    continue  # CSP can be N/A on non-HTML; listed as conditional
+                assert _check(header, target_type=info.id, content_type="text/html").applicable, (info.id, header)
+
+    def test_conditional_entries_match_the_engine(self):
+        by_id = {i.id: i for i in describe_target_types()}
+        web_conditional = {c.header for c in by_id[WEB].sometimes_not_applicable}
+        assert web_conditional == {
+            "Strict-Transport-Security",
+            "Content-Security-Policy",
+            "Access-Control-* (CORS headers)",
+        }
+        assert not _check("Strict-Transport-Security", is_https=False).applicable
+        assert not _check("Content-Security-Policy", content_type="application/json").applicable
+        assert not _check("Access-Control-Allow-Origin", content_type="text/html").applicable

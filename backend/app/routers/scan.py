@@ -3,6 +3,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.applicability import describe_target_types
 from app.core.deps import get_current_user
 from app.core.fetcher import FetchError, SSRFBlockedError, fetch_headers
 from app.core.header_parser import RawResponseParseError, parse_raw_response
@@ -10,9 +11,15 @@ from app.core.policy_engine import run_scan
 from app.core.policy_resolution import PolicyNotFoundError, resolve_policy_by_id
 from app.core.scan_comparison import DEFAULT_RAW_TARGET_NAME, find_previous_comparable_report
 from app.database import get_db
-from app.schemas import CSPPolicy, PolicyHeaderIn, ScanRequest, ScanResult, ScanSource
+from app.schemas import CSPPolicy, PolicyHeaderIn, ScanRequest, ScanResult, ScanSource, TargetTypeInfo
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
+
+
+@router.get("/target-types", response_model=list[TargetTypeInfo])
+def list_target_types(current_user: models.User = Depends(get_current_user)):
+    """Each target type, with the headers it marks N/A."""
+    return describe_target_types()
 
 
 @router.post("", response_model=ScanResult)

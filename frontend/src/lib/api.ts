@@ -1,3 +1,4 @@
+import type { TargetTypeInfo } from "./targetType";
 import type {
   ApiErrorBody,
   BurpAnalyzeRequestPayload,
@@ -140,6 +141,7 @@ export const api = {
     request<MFACodeIssued>("/api/mfa/disable/request", { method: "POST", body: JSON.stringify({ password }) }),
   mfaDisableVerify: (code: string) =>
     request<MFAStatus>("/api/mfa/disable/verify", { method: "POST", body: JSON.stringify({ code }) }),
+  targetTypes: () => request<TargetTypeInfo[]>("/api/scan/target-types"),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   me: () => request<User>("/api/auth/me"),
   listPolicies: () => request<Policy[]>("/api/policies"),

@@ -4463,3 +4463,56 @@ a {
   border: 1px solid color-mix(in srgb, var(--pass) 35%, transparent);
   border-radius: 8px;
 }
+
+/* A dropdown menu can extend past its own panel; lift the panel that holds an
+   open one above the panels that follow it (each panel is its own stacking
+   context because of its entrance animation). */
+.panel:has(.ps-trigger-open) {
+  position: relative;
+  z-index: 30;
+}
+
+/* "Headers marked N/A for <target type>" beneath the Target Type dropdown. */
+.na-summary {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+}
+
+.na-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.na-summary-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.na-summary-label {
+  flex: 0 0 70px;
+  color: var(--text-dim);
+}
+
+.na-summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.na-summary-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-dim);
+}

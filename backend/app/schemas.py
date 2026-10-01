@@ -371,6 +371,27 @@ class TargetType(str, Enum):
     WEB_APPLICATION = "web_application"
     REST_API = "rest_api"
     API_GATEWAY = "api_gateway"
+    # No automatic applicability rules: every header in the policy is checked,
+    # so the policy alone decides what is evaluated (how scans worked before
+    # target types existed).
+    CUSTOM = "custom"
+
+
+class ConditionalNotApplicable(BaseModel):
+    header: str
+    # Plain-language condition under which this header is N/A.
+    when: str
+
+
+class TargetTypeInfo(BaseModel):
+    """What a target type means and which headers it marks N/A (served by
+    GET /api/scan/target-types, built from the same rules the engine uses)."""
+
+    id: TargetType
+    label: str
+    description: str
+    always_not_applicable: list[str] = Field(default_factory=list)
+    sometimes_not_applicable: list[ConditionalNotApplicable] = Field(default_factory=list)
 
 
 class ScanRequest(BaseModel):

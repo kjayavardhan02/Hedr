@@ -15,12 +15,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.schemas import CSPFinding, HeaderFinding, ScoreBreakdown, Status, TargetType
+from app.schemas import (
+    ConditionalNotApplicable,
+    CSPFinding,
+    HeaderFinding,
+    ScoreBreakdown,
+    Status,
+    TargetType,
+    TargetTypeInfo,
+)
 
 TARGET_TYPE_LABELS: dict[TargetType, str] = {
     TargetType.WEB_APPLICATION: "Web Application",
     TargetType.REST_API: "REST API",
     TargetType.API_GATEWAY: "API Gateway",
+    TargetType.CUSTOM: "Custom",
+}
+
+TARGET_TYPE_DESCRIPTIONS: dict[TargetType, str] = {
+    TargetType.WEB_APPLICATION: "Browser-facing sites and apps - every browser security header applies.",
+    TargetType.REST_API: "Endpoints consumed programmatically - browser-document headers (CSP, X-Frame-Options…) are N/A.",
+    TargetType.API_GATEWAY: "A gateway-managed API surface - behaves like REST API for now.",
+    TargetType.CUSTOM: "You decide - every header in your policy is checked, nothing is skipped automatically.",
 }
 
 DEFAULT_TARGET_TYPE = TargetType.WEB_APPLICATION
@@ -30,17 +46,16 @@ _CSP = "content-security-policy"
 
 # Headers that only mean something for a browser-rendered document: Web
 # Application targets get them, API-style targets do not by default.
-_BROWSER_DOCUMENT_HEADERS = frozenset(
-    {
-        _CSP,
-        "x-frame-options",
-        "referrer-policy",
-        "permissions-policy",
-        "cross-origin-opener-policy",
-        "cross-origin-embedder-policy",
-        "cross-origin-resource-policy",
-    }
+BROWSER_DOCUMENT_HEADER_NAMES = (
+    "Content-Security-Policy",
+    "X-Frame-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+    "Cross-Origin-Opener-Policy",
+    "Cross-Origin-Embedder-Policy",
+    "Cross-Origin-Resource-Policy",
 )
+_BROWSER_DOCUMENT_HEADERS = frozenset(name.lower() for name in BROWSER_DOCUMENT_HEADER_NAMES)
 
 _HTML_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 
@@ -91,6 +106,10 @@ def check_applicability(
     name = header_name.strip().lower()
     type_label = label(target_type)
 
+    if target_type == TargetType.CUSTOM:
+        # The user's policy alone decides what is checked.
+        return _APPLICABLE
+
     if name == _HSTS:
         if is_https is False:
             return Applicability(False, "HSTS is only applicable to HTTPS responses.")
@@ -126,6 +145,44 @@ def check_applicability(
         return _APPLICABLE
 
     return _APPLICABLE
+
+
+_HSTS_WHEN = ConditionalNotApplicable(
+    header="Strict-Transport-Security", when="the response is over plain HTTP (HSTS only applies to HTTPS)"
+)
+
+
+def describe_target_types() -> list[TargetTypeInfo]:
+    """Which headers each target type marks N/A, for the UI. Mirrors
+    `check_applicability` - a test asserts the two agree."""
+    infos: list[TargetTypeInfo] = []
+    for target_type in TargetType:
+        always: list[str] = []
+        sometimes: list[ConditionalNotApplicable] = []
+        if target_type in (TargetType.REST_API, TargetType.API_GATEWAY):
+            always = list(BROWSER_DOCUMENT_HEADER_NAMES)
+            sometimes = [_HSTS_WHEN]
+        elif target_type == TargetType.WEB_APPLICATION:
+            sometimes = [
+                _HSTS_WHEN,
+                ConditionalNotApplicable(
+                    header="Content-Security-Policy", when="the response is not an HTML document"
+                ),
+                ConditionalNotApplicable(
+                    header="Access-Control-* (CORS headers)",
+                    when="the response is an HTML page that sends no CORS headers",
+                ),
+            ]
+        infos.append(
+            TargetTypeInfo(
+                id=target_type,
+                label=TARGET_TYPE_LABELS[target_type],
+                description=TARGET_TYPE_DESCRIPTIONS[target_type],
+                always_not_applicable=always,
+                sometimes_not_applicable=sometimes,
+            )
+        )
+    return infos
 
 
 def not_applicable_finding(
