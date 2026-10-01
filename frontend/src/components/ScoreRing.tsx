@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const SIZE = 104;
-const STROKE = 8;
-const RADIUS = (SIZE - STROKE) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const DEFAULT_SIZE = 104;
+const DEFAULT_STROKE = 8;
 
 export function gradeColor(grade: string) {
   switch (grade) {
@@ -20,16 +18,34 @@ export function gradeColor(grade: string) {
   }
 }
 
-export function ScoreRing({ score, grade }: { score: number; grade: string }) {
+export function ScoreRing({
+  score,
+  grade,
+  size = DEFAULT_SIZE,
+  showLabel = true,
+}: {
+  score: number;
+  grade: string;
+  /** Defaults to the standard 104px report-page ring. Pass a smaller value
+   * (e.g. for a compact theme-preview card) to render a scaled-down ring -
+   * stroke width scales proportionally so it stays visually consistent. */
+  size?: number;
+  /** Hide the centered score/grade text - useful at small sizes where the
+   * label text would no longer fit legibly. */
+  showLabel?: boolean;
+}) {
+  const stroke = Math.max(3, Math.round((size / DEFAULT_SIZE) * DEFAULT_STROKE));
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
   const [animatedScore, setAnimatedScore] = useState(0);
-  const [dashOffset, setDashOffset] = useState(CIRCUMFERENCE);
+  const [dashOffset, setDashOffset] = useState(circumference);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Kick off on the next frame so the initial 0-state renders first,
     // letting the CSS transition on stroke-dashoffset actually animate.
     const id = requestAnimationFrame(() => {
-      setDashOffset(CIRCUMFERENCE * (1 - Math.min(Math.max(score, 0), 100) / 100));
+      setDashOffset(circumference * (1 - Math.min(Math.max(score, 0), 100) / 100));
     });
 
     const start = performance.now();
@@ -52,44 +68,46 @@ export function ScoreRing({ score, grade }: { score: number; grade: string }) {
       cancelAnimationFrame(id);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [score]);
+  }, [score, size]);
 
   const color = gradeColor(grade);
 
   return (
     <div
       className="score-ring"
-      style={{ width: SIZE, height: SIZE, "--ring-color": color } as React.CSSProperties}
+      style={{ width: size, height: size, "--ring-color": color } as React.CSSProperties}
     >
-      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <circle
-          cx={SIZE / 2}
-          cy={SIZE / 2}
-          r={RADIUS}
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
           fill="none"
           stroke="var(--panel-border)"
-          strokeWidth={STROKE}
+          strokeWidth={stroke}
         />
         <circle
-          cx={SIZE / 2}
-          cy={SIZE / 2}
-          r={RADIUS}
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
           fill="none"
           stroke={color}
-          strokeWidth={STROKE}
+          strokeWidth={stroke}
           strokeLinecap="round"
-          strokeDasharray={CIRCUMFERENCE}
+          strokeDasharray={circumference}
           strokeDashoffset={dashOffset}
-          transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
           style={{ transition: "stroke-dashoffset 0.9s cubic-bezier(0.16, 1, 0.3, 1)" }}
         />
       </svg>
-      <div className="score-ring-label">
-        <span className="num">{animatedScore}</span>
-        <span className="grade" style={{ color }}>
-          {grade}
-        </span>
-      </div>
+      {showLabel && (
+        <div className="score-ring-label">
+          <span className="num">{animatedScore}</span>
+          <span className="grade" style={{ color }}>
+            {grade}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

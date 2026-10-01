@@ -7,6 +7,17 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+# Single source of truth for every valid theme value, used wherever `theme`
+# appears (UserOut, ProfileOut, PreferencesOut, PreferencesUpdate) so the
+# allowed set can't drift out of sync between them.
+ThemeName = Literal["dark", "light", "offwhite", "cyberpunk", "terminal", "midnight", "arctic"]
+
+# Same idea for the (independent - see spec) accent-color preference. Not
+# every id is offered for every theme in the UI (each theme curates a subset
+# that fits its palette), but the stored value is validated against this
+# full set regardless of the currently-selected theme.
+AccentColor = Literal["default", "cyan", "blue", "purple", "green", "pink", "orange"]
+
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -45,14 +56,26 @@ class UserOut(BaseModel):
     job_title: str | None = None
     # The policy pre-selected on the Scan page, if the user set one.
     default_policy_id: str | None = None
-    # "dark" | "light" | "system" - never null on the way out (see User.theme).
-    theme: Literal["dark", "light", "system"] = "dark"
+    # Never null on the way out (see User.theme).
+    theme: ThemeName = "dark"
+    # Never null on the way out (see User.accent_color) - independent of theme.
+    accent_color: AccentColor = "default"
     created_at: datetime
 
     @field_validator("theme", mode="before")
     @classmethod
     def _default_theme_to_dark(cls, value: str | None) -> str:
-        return value or "dark"
+        # "system" was removed as a selectable theme (it offered nothing
+        # Default didn't already cover) - any account whose row still has it
+        # from before that change reads back as "dark" rather than 500ing.
+        if not value or value == "system":
+            return "dark"
+        return value
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def _default_accent_to_default(cls, value: str | None) -> str:
+        return value or "default"
 
     class Config:
         from_attributes = True
@@ -72,7 +95,8 @@ class ProfileOut(BaseModel):
     organization: str | None = None
     job_title: str | None = None
     default_policy_id: str | None = None
-    theme: Literal["dark", "light", "system"] = "dark"
+    theme: ThemeName = "dark"
+    accent_color: AccentColor = "default"
     created_at: datetime
     # Null until the password has ever been changed - the frontend falls
     # back to `created_at` ("since account creation") in that case.
@@ -85,7 +109,17 @@ class ProfileOut(BaseModel):
     @field_validator("theme", mode="before")
     @classmethod
     def _default_theme_to_dark(cls, value: str | None) -> str:
-        return value or "dark"
+        # "system" was removed as a selectable theme (it offered nothing
+        # Default didn't already cover) - any account whose row still has it
+        # from before that change reads back as "dark" rather than 500ing.
+        if not value or value == "system":
+            return "dark"
+        return value
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def _default_accent_to_default(cls, value: str | None) -> str:
+        return value or "default"
 
     class Config:
         from_attributes = True
@@ -128,12 +162,23 @@ class PasswordChangeRequest(BaseModel):
 
 class PreferencesOut(BaseModel):
     default_policy_id: str | None = None
-    theme: Literal["dark", "light", "system"] = "dark"
+    theme: ThemeName = "dark"
+    accent_color: AccentColor = "default"
 
     @field_validator("theme", mode="before")
     @classmethod
     def _default_theme_to_dark(cls, value: str | None) -> str:
-        return value or "dark"
+        # "system" was removed as a selectable theme (it offered nothing
+        # Default didn't already cover) - any account whose row still has it
+        # from before that change reads back as "dark" rather than 500ing.
+        if not value or value == "system":
+            return "dark"
+        return value
+
+    @field_validator("accent_color", mode="before")
+    @classmethod
+    def _default_accent_to_default(cls, value: str | None) -> str:
+        return value or "default"
 
 
 class PreferencesUpdate(BaseModel):
@@ -142,7 +187,9 @@ class PreferencesUpdate(BaseModel):
     # Omitted (the default) leaves the current theme unchanged - there's no
     # "clear" state to distinguish from "dark" the way there is for
     # default_policy_id, so unlike that field this is never treated as null.
-    theme: Literal["dark", "light", "system"] | None = None
+    theme: ThemeName | None = None
+    # Same "omitted leaves it unchanged" rule as theme.
+    accent_color: AccentColor | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -640,6 +687,7 @@ class DashboardScan(BaseModel):
     policy_version: str
     source: ScanSource
     target: str | None
+    target_url: str | None
     score: float
     grade: str
     passed: int
@@ -647,6 +695,22 @@ class DashboardScan(BaseModel):
     headers_evaluated: int
     findings: DashboardFindings
     scanned_at: datetime
+
+
+class DashboardBurpImport(BaseModel):
+    """Shared shape for the dashboard's Recent Burp Imports list - mirrors
+    DashboardScan's fields closely so the two tables render the same way,
+    but score/policy are nullable since an import can still be sitting
+    unanalyzed (status "parsed")."""
+
+    id: str
+    name: str
+    policy_name: str | None
+    policy_version: str | None
+    score: float | None
+    responses_analyzed: int
+    imported_at: datetime
+    analyzed_at: datetime | None
 
 
 class DashboardRecentPolicy(BaseModel):
@@ -671,6 +735,7 @@ class DashboardSummary(BaseModel):
     # Scoped to ALL of the user's saved reports, not just recent_scans.
     findings: DashboardFindings
     recent_policies: list[DashboardRecentPolicy]
+    recent_burp_imports: list[DashboardBurpImport]
 
 
 # ---------------------------------------------------------------------------

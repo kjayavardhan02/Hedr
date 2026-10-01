@@ -5,15 +5,31 @@ import { useToast } from "@/components/Toast";
 import { useAuth } from "@/lib/auth-context";
 import { ApiError, api } from "@/lib/api";
 import { PolicySelect } from "@/components/PolicySelect";
+import { ScoreRing } from "@/components/ScoreRing";
 import type { Policy } from "@/lib/types";
-import { applyTheme, type Theme } from "@/lib/theme";
-import { IconSliders } from "./icons";
+import { ACCENT_COLORS, applyAccent, getAccentChoicesForTheme, type AccentColor } from "@/lib/accent";
+import { applyTheme, THEMES, type Theme } from "@/lib/theme";
+import {
+  IconBolt,
+  IconCheck,
+  IconMoon,
+  IconPage,
+  IconSliders,
+  IconSnowflake,
+  IconStars,
+  IconSun,
+  IconTerminalWindow,
+} from "./icons";
 
-const THEME_OPTIONS: { value: Theme; label: string; hint: string }[] = [
-  { value: "system", label: "System", hint: "Matches your device's setting." },
-  { value: "light", label: "Light", hint: "Always light, regardless of your device." },
-  { value: "dark", label: "Dark", hint: "Always dark, regardless of your device." },
-];
+const THEME_ICONS: Record<Theme, () => React.JSX.Element> = {
+  light: IconSun,
+  offwhite: IconPage,
+  dark: IconMoon,
+  cyberpunk: IconBolt,
+  terminal: IconTerminalWindow,
+  midnight: IconStars,
+  arctic: IconSnowflake,
+};
 
 function ruleSummary(policy: Policy): string {
   const n = policy.headers.length;
@@ -34,6 +50,8 @@ export function PreferencesCard({
   const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useState<Theme>(user?.theme ?? "dark");
   const [themeSaving, setThemeSaving] = useState(false);
+  const [accent, setAccent] = useState<AccentColor>(user?.accent_color ?? "default");
+  const [accentSaving, setAccentSaving] = useState(false);
 
   useEffect(() => {
     api.listPolicies().catch(() => []).then((data) => setPolicies(data ?? []));
@@ -46,6 +64,10 @@ export function PreferencesCard({
   useEffect(() => {
     if (user) setTheme(user.theme);
   }, [user?.theme]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (user) setAccent(user.accent_color);
+  }, [user?.accent_color]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedPolicy = useMemo(() => policies.find((p) => p.id === value), [policies, value]);
 
@@ -82,6 +104,24 @@ export function PreferencesCard({
     }
   }
 
+  async function handleAccentChange(next: AccentColor) {
+    const previous = accent;
+    setAccent(next);
+    applyAccent(next); // instant feedback, same pattern as handleThemeChange
+    setAccentSaving(true);
+    try {
+      await api.updatePreferences({ accent_color: next });
+      await refreshUser();
+      toast.show("Preferences saved.", "success");
+    } catch (e) {
+      setAccent(previous);
+      applyAccent(previous);
+      toast.show(e instanceof ApiError ? e.message : "Couldn't save preferences.", "error");
+    } finally {
+      setAccentSaving(false);
+    }
+  }
+
   return (
     <div className="panel panel-raised fade-in-up" id="preferences" style={style}>
       <h3 className="section-title" style={{ marginTop: 0, marginBottom: 14 }}>
@@ -93,22 +133,76 @@ export function PreferencesCard({
 
       <div className="field">
         <label>Appearance</label>
-        <div className="tabs" role="radiogroup" aria-label="Appearance">
-          {THEME_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              role="radio"
-              aria-checked={theme === opt.value}
-              className={`tab ${theme === opt.value ? "active" : ""}`}
-              disabled={themeSaving}
-              onClick={() => handleThemeChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="theme-grid" role="radiogroup" aria-label="Appearance">
+          {THEMES.map((t) => {
+            const Icon = THEME_ICONS[t.id];
+            const active = theme === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={`theme-card ${active ? "theme-card-active" : ""}`}
+                disabled={themeSaving}
+                onClick={() => handleThemeChange(t.id)}
+              >
+                {active && (
+                  <span className="theme-card-check" aria-label="Selected">
+                    <IconCheck />
+                  </span>
+                )}
+                <div className="theme-card-header">
+                  <span className="theme-card-icon">
+                    <Icon />
+                  </span>
+                  <span className="theme-card-name">{t.name}</span>
+                </div>
+                <p className="theme-card-desc">{t.description}</p>
+                <div className="theme-card-preview" data-theme={t.id}>
+                  <ScoreRing score={92} grade="A" size={40} showLabel={false} />
+                  <div className="theme-card-preview-badges">
+                    <span className="badge badge-PASS">✓ HSTS</span>
+                    <span className="badge badge-FAIL">✕ CSP</span>
+                  </div>
+                  <span className="btn btn-sm theme-card-preview-btn">Scan</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
-        <span className="field-hint">{THEME_OPTIONS.find((o) => o.value === theme)?.hint}</span>
+      </div>
+
+      <div className="field" style={{ marginTop: 16 }}>
+        <label>Accent Color</label>
+        <div className="accent-row" role="radiogroup" aria-label="Accent Color">
+          {getAccentChoicesForTheme(theme).map((id) => {
+            const active = accent === id;
+            const meta = id === "default" ? null : ACCENT_COLORS.find((c) => c.id === id);
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                title={id === "default" ? "Default" : meta?.name}
+                className={`accent-swatch-btn ${active ? "accent-swatch-btn-active" : ""}`}
+                disabled={accentSaving}
+                onClick={() => handleAccentChange(id)}
+              >
+                <span
+                  className="accent-swatch"
+                  {...(id === "default" ? { "data-theme": theme } : {})}
+                  style={id === "default" ? { background: "var(--accent)" } : { background: meta?.swatch }}
+                >
+                  {active && <IconCheck />}
+                </span>
+                <span className="accent-swatch-label">{id === "default" ? "Default" : meta?.name}</span>
+              </button>
+            );
+          })}
+        </div>
+        <span className="field-hint">A curated set of accents that fit the current theme.</span>
       </div>
 
       <div className="field" style={{ marginTop: 16 }}>

@@ -14,6 +14,7 @@ import { Spinner } from "@/components/Spinner";
 import { useToast } from "@/components/Toast";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { BackLink } from "@/components/BackLink";
+import { Chip } from "@/components/Chip";
 
 export default function EditPolicyPage() {
   const params = useParams<{ id: string }>();
@@ -171,7 +172,7 @@ export default function EditPolicyPage() {
                 </div>
                 <div className="field field-fixed">
                   <label>Required</label>
-                  <input type="checkbox" checked={h.required} disabled />
+                  <Chip checked={h.required} onToggle={() => {}} disabled />
                 </div>
               </div>
             ))}

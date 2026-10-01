@@ -7,7 +7,7 @@ import type { BurpImportListItem, Policy, ScanReportSummary } from "@/lib/types"
 import { useToast } from "@/components/Toast";
 import { PolicyCardSkeleton } from "@/components/Skeleton";
 import { PolicyPreviewModal } from "@/components/PolicyPreviewModal";
-import { normalizeTargetName, roundDelta, targetIdentity } from "@/lib/format";
+import { gradeForScore, normalizeTargetName, roundDelta, targetIdentity } from "@/lib/format";
 import { ExportDropdown } from "@/components/ExportDropdown";
 import { Highlight } from "@/components/Highlight";
 import { DateRangeFilter, FilterBar, SearchField, type FilterChip, type FilterTab } from "@/components/FilterBar";
@@ -194,24 +194,34 @@ const ReportRow = memo(function ReportRow({
   );
 });
 
-function burpScoreBadgeClass(score: number): string {
-  if (score >= 80) return "badge-PASS";
-  if (score >= 60) return "badge-WARNING";
-  return "badge-FAIL";
-}
-
-/** Burp imports are a structurally different shape (many endpoints per
- * report, not one target), so rather than forcing them into the existing
- * target/policy/grade filter machinery, they get their own tab with a
- * simpler list. */
+/** Burp imports don't have a single "target" like a scan report - the closest
+ * analog at the list level is the import's own name (plus its source
+ * filename), so the Target tab searches those instead of a URL. Otherwise
+ * this mirrors the Scan Reports tab's Target/Policy/Date/Grade filtering
+ * exactly, including the grade chips (computed from `score`, same
+ * gradeForScore the individual Burp report page already uses - imports
+ * still awaiting analysis have no score and so can't match a grade filter). */
 function BurpImportsSection({ onOpenPolicy }: { onOpenPolicy: (policyId: string) => void }) {
   const toast = useToast();
   const [imports, setImports] = useState<BurpImportListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [search, setSearch] = usePersistedState("reports", "burpSearch", "");
   const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [filterField, setFilterField] = useState<FilterField>("target");
+  const [targetText, setTargetText] = usePersistedState("reports", "burpTarget", "");
+  const [policyText, setPolicyText] = usePersistedState("reports", "burpPolicy", "");
+  const [dateFrom, setDateFrom] = usePersistedState("reports", "burpDateFrom", "");
+  const [dateTo, setDateTo] = usePersistedState("reports", "burpDateTo", "");
+  const [grades, setGrades] = usePersistedState<string[]>("reports", "burpGrades", []);
+  const deferredTarget = useDeferredValue(targetText);
+  const deferredPolicy = useDeferredValue(policyText);
+  const hasTarget = targetText.trim() !== "";
+  const hasPolicy = policyText.trim() !== "";
+  const hasDate = Boolean(dateFrom || dateTo);
+  const hasGrade = grades.length > 0;
+  const filterActive = hasTarget || hasPolicy || hasDate || hasGrade;
 
   function load() {
     setLoading(true);
@@ -224,17 +234,56 @@ function BurpImportsSection({ onOpenPolicy }: { onOpenPolicy: (policyId: string)
 
   useEffect(load, []);
 
-  const deferredSearch = useDeferredValue(search);
-  const visibleImports = useMemo(() => {
-    const q = deferredSearch.trim().toLowerCase();
-    if (!q) return imports;
+  const matchesOtherFilters = useMemo(() => {
+    const target = deferredTarget.trim().toLowerCase();
+    const policy = deferredPolicy.trim().toLowerCase();
+    if (!target && !policy && !dateFrom && !dateTo) return imports;
     return imports.filter(
       (item) =>
-        item.name.toLowerCase().includes(q) ||
-        (item.policy_name ?? "").toLowerCase().includes(q) ||
-        item.source_filename.toLowerCase().includes(q)
+        (!target ||
+          item.name.toLowerCase().includes(target) ||
+          item.source_filename.toLowerCase().includes(target)) &&
+        (!policy || (item.policy_name ?? "").toLowerCase().includes(policy)) &&
+        inDateRange(item.analyzed_at ?? item.imported_at, dateFrom, dateTo)
     );
-  }, [imports, deferredSearch]);
+  }, [imports, deferredTarget, deferredPolicy, dateFrom, dateTo]);
+
+  const gradeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const item of matchesOtherFilters) {
+      if (item.score === null) continue;
+      const g = gradeForScore(item.score);
+      counts[g] = (counts[g] ?? 0) + 1;
+    }
+    return counts;
+  }, [matchesOtherFilters]);
+
+  const visibleImports = useMemo(() => {
+    if (grades.length === 0) return matchesOtherFilters;
+    return matchesOtherFilters.filter((item) => item.score !== null && grades.includes(gradeForScore(item.score)));
+  }, [matchesOtherFilters, grades]);
+
+  function clearFilter() {
+    setTargetText("");
+    setPolicyText("");
+    setDateFrom("");
+    setDateTo("");
+    setGrades([]);
+  }
+
+  const filterChips: FilterChip[] = [
+    hasTarget && { key: "target", label: `Target: ${targetText.trim()}`, onRemove: () => setTargetText("") },
+    hasPolicy && { key: "policy", label: `Policy: ${policyText.trim()}`, onRemove: () => setPolicyText("") },
+    hasDate && {
+      key: "date",
+      label: `Date: ${describeDateRange(dateFrom, dateTo)}`,
+      onRemove: () => {
+        setDateFrom("");
+        setDateTo("");
+      },
+    },
+    hasGrade && { key: "grade", label: `Grade: ${grades.join(", ")}`, onRemove: () => setGrades([]) },
+  ].filter((c): c is FilterChip => Boolean(c));
 
   function requestDelete(id: string) {
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
@@ -273,9 +322,60 @@ function BurpImportsSection({ onOpenPolicy }: { onOpenPolicy: (policyId: string)
   return (
     <>
       {imports.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <SearchField value={search} onChange={setSearch} placeholder="Search by name, policy or filename…" />
-        </div>
+        <FilterBar
+          tabs={FILTER_TABS.map((t) => ({
+            ...t,
+            dot: { target: hasTarget, policy: hasPolicy, date: hasDate, grade: hasGrade }[t.field],
+          }))}
+          active={filterField}
+          onTab={setFilterField}
+          chips={filterChips}
+          count={visibleImports.length}
+          total={imports.length}
+          noun="import"
+          filterActive={filterActive}
+          onClear={clearFilter}
+        >
+          {filterField === "grade" ? (
+            <div className="rf-chips" role="group" aria-label="Grades">
+              {GRADES.map((g) => {
+                const on = grades.includes(g);
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`rf-grade rf-grade-${gradeTone(g)} ${on ? "rf-grade-on" : ""}`}
+                    aria-pressed={on}
+                    disabled={!on && (gradeCounts[g] ?? 0) === 0}
+                    onClick={() =>
+                      setGrades((cur) => (cur.includes(g) ? cur.filter((x) => x !== g) : [...cur, g]))
+                    }
+                  >
+                    <span className="rf-grade-letter">{g}</span>
+                    <span className="rf-grade-count">{gradeCounts[g] ?? 0}</span>
+                  </button>
+                );
+              })}
+              <span className="rf-hint">Select one or more grades</span>
+            </div>
+          ) : filterField === "date" ? (
+            <DateRangeFilter
+              from={dateFrom}
+              to={dateTo}
+              onChange={(from, to) => {
+                setDateFrom(from);
+                setDateTo(to);
+              }}
+            />
+          ) : (
+            <SearchField
+              key={filterField}
+              value={filterField === "policy" ? policyText : targetText}
+              onChange={filterField === "policy" ? setPolicyText : setTargetText}
+              placeholder={filterField === "policy" ? "Search by policy name…" : "Search by name or filename…"}
+            />
+          )}
+        </FilterBar>
       )}
       <div className="panel fade-in-up">
         {imports.length === 0 ? (
@@ -284,54 +384,59 @@ function BurpImportsSection({ onOpenPolicy }: { onOpenPolicy: (policyId: string)
             it will show up here.
           </p>
         ) : visibleImports.length === 0 ? (
-          <p className="empty-state">No Burp History imports match this search.</p>
+          <p className="empty-state">No Burp History imports match this filter.</p>
         ) : (
-          visibleImports.map((item) => (
-            <div key={item.id} className="policy-card">
-              <div className="policy-card-info">
-                <div style={{ fontWeight: 600 }}>
-                  <Highlight text={item.name} query={deferredSearch} />
+          visibleImports.map((item) => {
+            const grade = item.score !== null ? gradeForScore(item.score) : null;
+            return (
+              <div key={item.id} className="policy-card">
+                <div className="policy-card-info">
+                  <div style={{ fontWeight: 600 }}>
+                    <Highlight text={item.name} query={deferredTarget} />
+                  </div>
+                  <div className="policy-card-meta">
+                    {item.policy_name ? (
+                      <>
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => onOpenPolicy(item.policy_id as string)}
+                        >
+                          <Highlight text={item.policy_name} query={deferredPolicy} />
+                        </button>{" "}
+                        <span className="report-version-pill">{item.policy_version}</span>
+                      </>
+                    ) : (
+                      "Not analyzed yet"
+                    )}
+                    {" · "}
+                    {formatDate(item.analyzed_at ?? item.imported_at)}
+                    {" · "}
+                    {item.responses_analyzed} response{item.responses_analyzed === 1 ? "" : "s"} analyzed
+                  </div>
                 </div>
-                <div className="policy-card-meta">
-                  {item.policy_name ? (
-                    <>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => onOpenPolicy(item.policy_id as string)}
-                      >
-                        <Highlight text={item.policy_name} query={deferredSearch} />
-                      </button>{" "}
-                      <span className="report-version-pill">{item.policy_version}</span>
-                    </>
-                  ) : (
-                    "Not analyzed yet"
+                <div className="policy-card-actions report-actions">
+                  {item.score !== null && grade && (
+                    <span className={`badge ${gradeBadgeClass(grade)}`}>
+                      {grade} · {item.score}%
+                    </span>
                   )}
-                  {" · "}
-                  {formatDate(item.analyzed_at ?? item.imported_at)}
-                  {" · "}
-                  {item.responses_analyzed} response{item.responses_analyzed === 1 ? "" : "s"} analyzed
+                  <div className="report-actions-buttons">
+                    <Link className="btn btn-secondary btn-sm" href={`/reports/burp/${item.id}`}>
+                      View
+                    </Link>
+                    <button
+                      className={`btn btn-sm ${confirmingId === item.id ? "btn-danger-solid" : "btn-danger"}`}
+                      onClick={() => requestDelete(item.id)}
+                      disabled={deletingId === item.id}
+                    >
+                      {deletingId === item.id ? "Deleting…" : confirmingId === item.id ? "Confirm?" : "Delete"}
+                    </button>
+                  </div>
                 </div>
               </div>
-              <div className="policy-card-actions report-actions">
-                {item.score !== null && (
-                  <span className={`badge ${burpScoreBadgeClass(item.score)}`}>{item.score}%</span>
-                )}
-                <div className="report-actions-buttons">
-                  <Link className="btn btn-secondary btn-sm" href={`/reports/burp/${item.id}`}>
-                    View
-                  </Link>
-                  <button
-                    className={`btn btn-sm ${confirmingId === item.id ? "btn-danger-solid" : "btn-danger"}`}
-                    onClick={() => requestDelete(item.id)}
-                    disabled={deletingId === item.id}
-                  >
-                    {deletingId === item.id ? "Deleting…" : confirmingId === item.id ? "Confirm?" : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </>

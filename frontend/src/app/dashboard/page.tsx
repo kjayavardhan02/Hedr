@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { capitalize, formatDateTime, timeAgo } from "@/lib/format";
+import { capitalize, formatDateTime, gradeForScore, timeAgo } from "@/lib/format";
 import type { DashboardSummary, Policy } from "@/lib/types";
 import { ScoreRing } from "@/components/ScoreRing";
 import { DashboardSkeleton } from "@/components/Skeleton";
@@ -284,7 +284,7 @@ export default function DashboardPage() {
               <ScoreRing score={summary.latest_scan.score} grade={summary.latest_scan.grade} />
               <div className="latest-scan-info">
                 <div className="mono" style={{ fontWeight: 600, fontSize: 15 }}>
-                  {summary.latest_scan.target ?? "—"}
+                  {summary.latest_scan.target_url ?? summary.latest_scan.target ?? "—"}
                 </div>
                 <div className="field-hint" style={{ marginTop: 2 }}>
                   {summary.latest_scan.policy_name} · {summary.latest_scan.policy_version}
@@ -426,7 +426,7 @@ export default function DashboardPage() {
                         <span className="dashboard-table-name-icon">
                           <IconScan />
                         </span>
-                        <span className="mono">{s.target ?? "—"}</span>
+                        <span className="mono">{s.target_url ?? s.target ?? "—"}</span>
                       </span>
                     </td>
                     <td className="dashboard-table-wrap-cell">{s.policy_name}</td>
@@ -441,6 +441,72 @@ export default function DashboardPage() {
                     <td className="field-hint">{timeAgo(s.scanned_at)}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="panel fade-in-up" style={{ marginTop: 16 }}>
+        <div className="section-header">
+          <h3 className="section-title" style={{ margin: 0 }}>
+            <span className="section-icon">
+              <IconScan />
+            </span>
+            Recent Burp History Imports
+          </h3>
+          <Link href="/reports" className="field-hint">
+            View All →
+          </Link>
+        </div>
+        {summary.recent_burp_imports.length === 0 ? (
+          <p className="empty-state">No Burp History imports yet.</p>
+        ) : (
+          <div className="dashboard-table-wrap">
+            <table className="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Policy</th>
+                  <th>Version</th>
+                  <th>Score</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.recent_burp_imports.map((b) => {
+                  const grade = b.score !== null ? gradeForScore(b.score) : null;
+                  return (
+                    <tr
+                      key={b.id}
+                      style={grade ? ({ "--row-accent": gradeAccent(grade) } as React.CSSProperties) : undefined}
+                      onClick={() => router.push(`/reports/burp/${b.id}`)}
+                    >
+                      <td className="dashboard-table-name-cell">
+                        <span className="dashboard-table-name-inline">
+                          <span className="dashboard-table-name-icon">
+                            <IconScan />
+                          </span>
+                          <span className="mono">{b.name}</span>
+                        </span>
+                      </td>
+                      <td className="dashboard-table-wrap-cell">{b.policy_name ?? "—"}</td>
+                      <td>
+                        {b.policy_version && <span className="report-version-pill">{b.policy_version}</span>}
+                      </td>
+                      <td>
+                        {b.score !== null && grade ? (
+                          <span className={`badge ${gradeBadgeClass(grade)}`}>
+                            {grade} · {b.score}
+                          </span>
+                        ) : (
+                          <span className="field-hint">Not analyzed</span>
+                        )}
+                      </td>
+                      <td className="field-hint">{timeAgo(b.analyzed_at ?? b.imported_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -469,7 +535,7 @@ export default function DashboardPage() {
           </div>
           <div
             className="findings-stat"
-            style={{ "--stat-accent": "var(--accent)", "--stat-tint": "rgba(255, 122, 26, 0.08)" } as React.CSSProperties}
+            style={{ "--stat-accent": "var(--accent)", "--stat-tint": "color-mix(in srgb, var(--accent) 8%, transparent)" } as React.CSSProperties}
           >
             <div className="findings-stat-value" style={{ color: "var(--accent)" }}>
               {summary.findings.high}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Chip } from "./Chip";
 import type { CSPDirectiveRule, CSPPolicy } from "@/lib/types";
 
 const COMMON_DIRECTIVES = [
@@ -91,34 +92,17 @@ export function CSPPolicyBuilder({ policy, onChange }: Props) {
         ))}
       </datalist>
 
-      <label className="csp-toggle">
-        <input type="checkbox" checked={policy !== null} onChange={(e) => toggleEnabled(e.target.checked)} />
-        Evaluate Content-Security-Policy
-      </label>
+      <Chip checked={policy !== null} onToggle={() => toggleEnabled(!(policy !== null))}>Evaluate Content-Security-Policy</Chip>
 
       {policy && (
         <div style={{ marginTop: 14 }}>
-          <label className="csp-toggle">
-            <input
-              type="checkbox"
-              checked={policy.required}
-              onChange={(e) => updatePolicy({ required: e.target.checked })}
-            />
-            Header required (fail if the response never sends a CSP header at all)
-          </label>
+          <Chip checked={policy.required} onToggle={() => updatePolicy({ required: !(policy.required) })}>Header required (fail if the response never sends a CSP header at all)</Chip>
 
           <div className="field" style={{ marginTop: 14 }}>
             <label>Required directives</label>
             <div className="csp-directive-checks">
               {COMMON_DIRECTIVES.map((d) => (
-                <label className="csp-directive-check" key={d}>
-                  <input
-                    type="checkbox"
-                    checked={policy.required_directives.includes(d)}
-                    onChange={(e) => toggleRequiredDirective(d, e.target.checked)}
-                  />
-                  <span className="mono">{d}</span>
-                </label>
+                <Chip checked={policy.required_directives.includes(d)} onToggle={() => toggleRequiredDirective(d, !(policy.required_directives.includes(d)))} key={d} mono>{d}</Chip>
               ))}
             </div>
           </div>
@@ -176,46 +160,11 @@ export function CSPPolicyBuilder({ policy, onChange }: Props) {
                   </span>
                 </div>
                 <div className="csp-pattern-checks">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.disallow_wildcards}
-                      onChange={(e) => updateRule(i, { disallow_wildcards: e.target.checked })}
-                    />
-                    No wildcards (*)
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.disallow_external}
-                      onChange={(e) => updateRule(i, { disallow_external: e.target.checked })}
-                    />
-                    No external sources
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.disallow_http}
-                      onChange={(e) => updateRule(i, { disallow_http: e.target.checked })}
-                    />
-                    No http: sources
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.disallow_data}
-                      onChange={(e) => updateRule(i, { disallow_data: e.target.checked })}
-                    />
-                    No data: sources
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={rule.disallow_blob}
-                      onChange={(e) => updateRule(i, { disallow_blob: e.target.checked })}
-                    />
-                    No blob: sources
-                  </label>
+                  <Chip checked={rule.disallow_wildcards} onToggle={() => updateRule(i, { disallow_wildcards: !(rule.disallow_wildcards) })}>No wildcards (*)</Chip>
+                  <Chip checked={rule.disallow_external} onToggle={() => updateRule(i, { disallow_external: !(rule.disallow_external) })}>No external sources</Chip>
+                  <Chip checked={rule.disallow_http} onToggle={() => updateRule(i, { disallow_http: !(rule.disallow_http) })}>No http: sources</Chip>
+                  <Chip checked={rule.disallow_data} onToggle={() => updateRule(i, { disallow_data: !(rule.disallow_data) })}>No data: sources</Chip>
+                  <Chip checked={rule.disallow_blob} onToggle={() => updateRule(i, { disallow_blob: !(rule.disallow_blob) })}>No blob: sources</Chip>
                 </div>
                 <button
                   type="button"

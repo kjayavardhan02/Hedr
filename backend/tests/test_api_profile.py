@@ -1,5 +1,7 @@
 import uuid
 
+import pytest
+
 from tests.conftest import DEFAULT_PASSWORD
 
 
@@ -21,6 +23,7 @@ def test_get_profile_returns_defaults(auth_client):
     assert body["password_changed_at"] is None
     assert body["two_factor_enabled"] is False
     assert body["theme"] == "dark"
+    assert body["accent_color"] == "default"
     assert "hashed_password" not in body
 
 
@@ -136,6 +139,7 @@ class TestPreferences:
         assert client.get("/api/profile/preferences").json() == {
             "default_policy_id": None,
             "theme": "dark",
+            "accent_color": "default",
         }
 
     def test_can_set_an_owned_policy_as_default(self, auth_client):
@@ -192,10 +196,54 @@ class TestPreferences:
         assert resp.json()["theme"] == "light"
         assert client.get("/api/profile/preferences").json()["theme"] == "light"
 
+    @pytest.mark.parametrize("theme", ["cyberpunk", "terminal", "midnight", "arctic", "offwhite"])
+    def test_can_set_named_theme(self, auth_client, theme):
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"theme": theme})
+        assert resp.status_code == 200
+        assert resp.json()["theme"] == theme
+        assert client.get("/api/profile/preferences").json()["theme"] == theme
+
     def test_invalid_theme_rejected(self, auth_client):
         client, _ = auth_client
         resp = client.patch("/api/profile/preferences", json={"theme": "solarized"})
         assert resp.status_code == 422
+
+    def test_system_theme_no_longer_accepted(self, auth_client):
+        # "system" was removed as a selectable theme (it never offered
+        # anything Default didn't already cover) - new writes of it are
+        # rejected just like any other invalid value.
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"theme": "system"})
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize("accent", ["cyan", "blue", "purple", "green", "pink", "orange"])
+    def test_can_set_accent_color(self, auth_client, accent):
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"accent_color": accent})
+        assert resp.status_code == 200
+        assert resp.json()["accent_color"] == accent
+        assert client.get("/api/profile/preferences").json()["accent_color"] == accent
+
+    def test_can_reset_accent_color_to_default(self, auth_client):
+        client, _ = auth_client
+        client.patch("/api/profile/preferences", json={"accent_color": "cyan"})
+        resp = client.patch("/api/profile/preferences", json={"accent_color": "default"})
+        assert resp.status_code == 200
+        assert resp.json()["accent_color"] == "default"
+
+    def test_invalid_accent_color_rejected(self, auth_client):
+        client, _ = auth_client
+        resp = client.patch("/api/profile/preferences", json={"accent_color": "chartreuse"})
+        assert resp.status_code == 422
+
+    def test_updating_accent_color_does_not_change_theme(self, auth_client):
+        client, _ = auth_client
+        client.patch("/api/profile/preferences", json={"theme": "cyberpunk"})
+        resp = client.patch("/api/profile/preferences", json={"accent_color": "pink"})
+        assert resp.status_code == 200
+        assert resp.json()["theme"] == "cyberpunk"
+        assert resp.json()["accent_color"] == "pink"
 
     def test_updating_theme_does_not_clear_default_policy(self, auth_client):
         client, _ = auth_client
@@ -210,10 +258,10 @@ class TestPreferences:
 
     def test_updating_default_policy_does_not_reset_theme(self, auth_client):
         client, _ = auth_client
-        client.patch("/api/profile/preferences", json={"theme": "system"})
+        client.patch("/api/profile/preferences", json={"theme": "midnight"})
         baseline = client.get("/api/policies/baselines").json()[0]
 
         resp = client.patch("/api/profile/preferences", json={"default_policy_id": baseline["id"]})
 
         assert resp.status_code == 200
-        assert resp.json()["theme"] == "system"
+        assert resp.json()["theme"] == "midnight"

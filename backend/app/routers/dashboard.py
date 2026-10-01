@@ -8,6 +8,7 @@ from app.core.scoring import grade_for_score
 from app.database import get_db
 from app.schemas import (
     DashboardBaselinesInfo,
+    DashboardBurpImport,
     DashboardFindings,
     DashboardPoliciesInfo,
     DashboardRecentPolicy,
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 # caps deliberately keep it to a small, glanceable slice of the user's data.
 RECENT_SCANS_LIMIT = 3
 RECENT_POLICIES_LIMIT = 3
+RECENT_BURP_IMPORTS_LIMIT = 3
 
 # Only these severities are shown on the findings summary (matches the
 # product spec's Critical/High/Medium/Low table). Anything else - e.g. the
@@ -89,6 +91,7 @@ def _to_dashboard_scan(report: models.ScanReport) -> DashboardScan:
         policy_version=report.policy_version,
         source=report.source,
         target=report.target,
+        target_url=report.target_url,
         score=report.score,
         grade=report.grade,
         passed=passed,
@@ -145,6 +148,13 @@ def get_dashboard_summary(
         .limit(RECENT_POLICIES_LIMIT)
         .all()
     )
+    recent_burp_imports = (
+        db.query(models.BurpImport)
+        .filter(models.BurpImport.owner_id == current_user.id)
+        .order_by(func.coalesce(models.BurpImport.analyzed_at, models.BurpImport.imported_at).desc())
+        .limit(RECENT_BURP_IMPORTS_LIMIT)
+        .all()
+    )
 
     return DashboardSummary(
         reports=DashboardReportsInfo(total=total_reports),
@@ -166,5 +176,18 @@ def get_dashboard_summary(
                 updated_at=p.updated_at,
             )
             for p in recent_policies
+        ],
+        recent_burp_imports=[
+            DashboardBurpImport(
+                id=b.id,
+                name=b.name,
+                policy_name=b.policy_name,
+                policy_version=b.policy_version,
+                score=b.score,
+                responses_analyzed=b.responses_analyzed,
+                imported_at=b.imported_at,
+                analyzed_at=b.analyzed_at,
+            )
+            for b in recent_burp_imports
         ],
     )

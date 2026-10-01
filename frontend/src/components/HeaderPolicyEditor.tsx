@@ -1,5 +1,6 @@
 "use client";
 
+import { Chip } from "./Chip";
 import { CharCount } from "@/components/CharCount";
 import { HEADER_EXPECTED_VALUE_MAX_LENGTH } from "@/lib/limits";
 import type { PolicyHeader } from "@/lib/types";
@@ -95,12 +96,7 @@ export function HeaderPolicyEditor({ headers, onChange }: Props) {
           </div>
           <div className="field field-fixed">
             <label>Required</label>
-            <input
-              type="checkbox"
-              checked={h.required}
-              onChange={(e) => updateRow(i, { required: e.target.checked })}
-              style={{ width: 18, height: 18 }}
-            />
+            <Chip checked={h.required} onToggle={() => updateRow(i, { required: !h.required })} />
           </div>
           <button
             type="button"

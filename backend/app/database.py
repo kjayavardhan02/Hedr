@@ -51,6 +51,7 @@ def ensure_schema(bind=engine) -> None:
             "password_changed_at",
             "default_policy_id",
             "theme",
+            "accent_color",
         ):
             if column not in existing_user_cols:
                 with bind.begin() as conn:

@@ -74,9 +74,17 @@ def change_password(
     return None
 
 
+def _preferences_out(user: models.User) -> PreferencesOut:
+    return PreferencesOut(
+        default_policy_id=user.default_policy_id,
+        theme=user.theme,
+        accent_color=user.accent_color,
+    )
+
+
 @router.get("/preferences", response_model=PreferencesOut)
 def get_preferences(current_user: models.User = Depends(get_current_user)):
-    return PreferencesOut(default_policy_id=current_user.default_policy_id, theme=current_user.theme)
+    return _preferences_out(current_user)
 
 
 @router.patch("/preferences", response_model=PreferencesOut)
@@ -100,5 +108,8 @@ def update_preferences(
     if "theme" in data:
         current_user.theme = data["theme"]
 
+    if "accent_color" in data:
+        current_user.accent_color = data["accent_color"]
+
     db.commit()
-    return PreferencesOut(default_policy_id=current_user.default_policy_id, theme=current_user.theme)
+    return _preferences_out(current_user)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type {
@@ -12,6 +12,7 @@ import type {
   Policy,
 } from "@/lib/types";
 import { BackLink } from "@/components/BackLink";
+import { Highlight } from "@/components/Highlight";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 import { downloadBinaryBlob } from "@/lib/download";
@@ -28,7 +29,7 @@ const PAGE_SIZE = 30;
 // warrant a color accent of their own.
 const SEVERITY_TIERS: { key: string; label: string; accent?: string; tint?: string }[] = [
   { key: "critical", label: "Critical", accent: "var(--fail)", tint: "rgba(239, 68, 68, 0.08)" },
-  { key: "high", label: "High", accent: "var(--accent)", tint: "rgba(255, 122, 26, 0.08)" },
+  { key: "high", label: "High", accent: "var(--accent)", tint: "color-mix(in srgb, var(--accent) 8%, transparent)" },
   { key: "medium", label: "Medium", accent: "var(--warn)", tint: "rgba(255, 176, 32, 0.08)" },
   { key: "low", label: "Low" },
   { key: "info", label: "Info" },
@@ -147,8 +148,8 @@ function FindingGroupCard({ finding, index }: { finding: BurpFindingGroup; index
           <div style={{ paddingTop: 10 }}>
             <span className="field-hint">Affected endpoints:</span>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              {finding.affected_endpoints.map((endpoint) => (
-                <span key={endpoint} className="endpoint-tag mono">
+              {finding.affected_endpoints.map((endpoint, i) => (
+                <span key={`${endpoint}-${i}`} className="endpoint-tag mono">
                   {endpoint}
                 </span>
               ))}
@@ -224,8 +225,8 @@ function InconsistencyCard({ inconsistency, index }: { inconsistency: BurpHeader
                     />
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                    {cfg.affected_endpoints.map((endpoint) => (
-                      <span key={endpoint} className="endpoint-tag mono">
+                    {cfg.affected_endpoints.map((endpoint, i) => (
+                      <span key={`${endpoint}-${i}`} className="endpoint-tag mono">
                         {endpoint}
                       </span>
                     ))}
@@ -240,16 +241,20 @@ function InconsistencyCard({ inconsistency, index }: { inconsistency: BurpHeader
   );
 }
 
-function EndpointRow({ endpoint }: { endpoint: BurpEndpointAnalysis }) {
+function EndpointRow({ endpoint, highlightQuery }: { endpoint: BurpEndpointAnalysis; highlightQuery: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <tr onClick={() => setOpen((v) => !v)} style={{ cursor: "pointer" }}>
-        <td className="dashboard-table-wrap-cell" style={{ textAlign: "left" }}>
-          <span className="mono">{endpoint.domain}</span>
+        <td className="dashboard-table-wrap-cell">
+          <span className="mono">
+            <Highlight text={endpoint.domain} query={highlightQuery} />
+          </span>
         </td>
-        <td className="dashboard-table-wrap-cell" style={{ textAlign: "left" }}>
-          <span className="mono">{endpoint.path}</span>
+        <td className="dashboard-table-wrap-cell">
+          <span className="mono">
+            <Highlight text={endpoint.path} query={highlightQuery} />
+          </span>
         </td>
         <td>{endpoint.method}</td>
         <td>{endpoint.status_code ?? "—"}</td>
@@ -306,15 +311,16 @@ export default function BurpReportDetailPage() {
   }, [id]);
 
   const analysis = record?.analysis ?? null;
+  const deferredSearch = useDeferredValue(search);
 
   const filteredEndpoints = useMemo(() => {
     if (!analysis) return [];
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     if (!q) return analysis.endpoints;
     return analysis.endpoints.filter(
       (e) => e.domain.toLowerCase().includes(q) || e.path.toLowerCase().includes(q)
     );
-  }, [analysis, search]);
+  }, [analysis, deferredSearch]);
   const pageEndpoints = filteredEndpoints.slice(0, shownCount);
 
   async function openPolicy(policyId: string) {
@@ -439,7 +445,7 @@ export default function BurpReportDetailPage() {
           <table className="dashboard-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>Host</th>
+                <th>Host</th>
                 <th>Responses</th>
                 <th>Unique Paths</th>
                 <th>Score</th>
@@ -448,7 +454,7 @@ export default function BurpReportDetailPage() {
             <tbody>
               {analysis.host_summary.map((row) => (
                 <tr key={row.host}>
-                  <td className="dashboard-table-wrap-cell" style={{ textAlign: "left" }}>
+                  <td className="dashboard-table-wrap-cell">
                     <span className="mono">{row.host}</span>
                   </td>
                   <td>{row.responses}</td>
@@ -467,7 +473,7 @@ export default function BurpReportDetailPage() {
           <table className="dashboard-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>Header</th>
+                <th>Header</th>
                 <th>Present</th>
                 <th>Missing</th>
                 <th>Invalid</th>
@@ -478,7 +484,7 @@ export default function BurpReportDetailPage() {
             <tbody>
               {analysis.header_coverage.map((row) => (
                 <tr key={row.header}>
-                  <td className="dashboard-table-wrap-cell" style={{ textAlign: "left" }}>
+                  <td className="dashboard-table-wrap-cell">
                     {row.header}
                   </td>
                   <td>{row.present}</td>
@@ -536,8 +542,8 @@ export default function BurpReportDetailPage() {
           <table className="dashboard-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>Domain</th>
-                <th style={{ textAlign: "left" }}>Path</th>
+                <th>Domain</th>
+                <th>Path</th>
                 <th>Method</th>
                 <th>Status</th>
                 <th>Score</th>
@@ -546,7 +552,7 @@ export default function BurpReportDetailPage() {
             </thead>
             <tbody>
               {pageEndpoints.map((endpoint, i) => (
-                <EndpointRow key={`${endpoint.raw_url}-${i}`} endpoint={endpoint} />
+                <EndpointRow key={`${endpoint.raw_url}-${i}`} endpoint={endpoint} highlightQuery={deferredSearch} />
               ))}
             </tbody>
           </table>

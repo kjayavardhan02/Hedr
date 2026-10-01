@@ -1,4 +1,17 @@
+import type { AccentColor } from "./accent";
+import type { Theme } from "./theme";
+
 export type Status = "PASS" | "FAIL" | "WARNING" | "INFO";
+
+/** Every valid value for a user's stored theme preference. Re-exports
+ * `Theme` (lib/theme.ts, the single source of truth) under the name these
+ * API-facing types have always used. Mirrors the backend's `ThemeName`
+ * (schemas.py). */
+export type ThemePreference = Theme;
+
+/** Re-exports `AccentColor` (lib/accent.ts) under the API-facing name.
+ * Mirrors the backend's `AccentColor` (schemas.py). */
+export type AccentPreference = AccentColor;
 
 export interface User {
   id: string;
@@ -11,7 +24,9 @@ export interface User {
   /** The policy pre-selected on the Scan page, if one is set. */
   default_policy_id: string | null;
   /** Never null - the backend resolves an unset value to "dark". */
-  theme: "dark" | "light" | "system";
+  theme: ThemePreference;
+  /** Never null - the backend resolves an unset value to "default". */
+  accent_color: AccentPreference;
   created_at: string;
 }
 
@@ -40,13 +55,15 @@ export interface PasswordChangePayload {
 
 export interface Preferences {
   default_policy_id: string | null;
-  theme: "dark" | "light" | "system";
+  theme: ThemePreference;
+  accent_color: AccentPreference;
 }
 
 /** PATCH body: every field optional and independent, same as ProfileUpdatePayload. */
 export interface PreferencesUpdatePayload {
   default_policy_id?: string | null;
-  theme?: "dark" | "light" | "system";
+  theme?: ThemePreference;
+  accent_color?: AccentPreference;
 }
 
 export interface RegisterPayload {
@@ -372,6 +389,7 @@ export interface DashboardScan {
   policy_version: string;
   source: "url" | "raw";
   target: string | null;
+  target_url: string | null;
   score: number;
   grade: string;
   passed: number;
@@ -379,6 +397,17 @@ export interface DashboardScan {
   headers_evaluated: number;
   findings: DashboardFindings;
   scanned_at: string;
+}
+
+export interface DashboardBurpImport {
+  id: string;
+  name: string;
+  policy_name: string | null;
+  policy_version: string | null;
+  score: number | null;
+  responses_analyzed: number;
+  imported_at: string;
+  analyzed_at: string | null;
 }
 
 export interface DashboardRecentPolicy {
@@ -408,6 +437,7 @@ export interface DashboardSummary {
   recent_scans: DashboardScan[];
   findings: DashboardFindings;
   recent_policies: DashboardRecentPolicy[];
+  recent_burp_imports: DashboardBurpImport[];
 }
 
 export interface ApiErrorBody {

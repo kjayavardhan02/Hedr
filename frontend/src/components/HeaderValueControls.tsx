@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Chip } from "./Chip";
 import {
   CACHE_CONTROL_FLAGS,
   ENUM_OPTIONS,
@@ -86,22 +87,8 @@ function HstsEditor({ value, onChange }: EditorProps) {
         />
       </div>
       <div className="csp-directive-checks">
-        <label className="csp-directive-check">
-          <input
-            type="checkbox"
-            checked={parsed.includeSubDomains}
-            onChange={(e) => onChange(serializeHsts({ ...parsed, includeSubDomains: e.target.checked }))}
-          />
-          <span>includeSubDomains required</span>
-        </label>
-        <label className="csp-directive-check">
-          <input
-            type="checkbox"
-            checked={parsed.preload}
-            onChange={(e) => onChange(serializeHsts({ ...parsed, preload: e.target.checked }))}
-          />
-          <span>preload required</span>
-        </label>
+        <Chip checked={parsed.includeSubDomains} onToggle={() => onChange(serializeHsts({ ...parsed, includeSubDomains: !(parsed.includeSubDomains) }))}>includeSubDomains required</Chip>
+        <Chip checked={parsed.preload} onToggle={() => onChange(serializeHsts({ ...parsed, preload: !(parsed.preload) }))}>preload required</Chip>
       </div>
     </div>
   );
@@ -127,14 +114,7 @@ function CacheControlEditor({ value, onChange }: EditorProps) {
       <div className="hv-group-label">Required directives</div>
       <div className="csp-directive-checks">
         {CACHE_CONTROL_FLAGS.map((flag) => (
-          <label className="csp-directive-check" key={flag}>
-            <input
-              type="checkbox"
-              checked={parsed.required.includes(flag)}
-              onChange={(e) => toggle("required", flag, e.target.checked)}
-            />
-            <span className="mono">{flag}</span>
-          </label>
+          <Chip checked={parsed.required.includes(flag)} onToggle={() => toggle("required", flag, !(parsed.required.includes(flag)))} key={flag} mono>{flag}</Chip>
         ))}
       </div>
 
@@ -175,25 +155,11 @@ function CacheControlEditor({ value, onChange }: EditorProps) {
       </div>
       <div className="csp-directive-checks">
         {CACHE_CONTROL_FLAGS.map((flag) => (
-          <label className="csp-directive-check" key={flag}>
-            <input
-              type="checkbox"
-              checked={parsed.prohibited.includes(flag)}
-              onChange={(e) => toggle("prohibited", flag, e.target.checked)}
-            />
-            <span className="mono">{flag}</span>
-          </label>
+          <Chip checked={parsed.prohibited.includes(flag)} onToggle={() => toggle("prohibited", flag, !(parsed.prohibited.includes(flag)))} key={flag} mono>{flag}</Chip>
         ))}
       </div>
 
-      <label className="csp-directive-check" style={{ marginTop: 10 }}>
-        <input
-          type="checkbox"
-          checked={parsed.allowExtras}
-          onChange={(e) => onChange(serializeCacheControl({ ...parsed, allowExtras: e.target.checked }))}
-        />
-        <span>Allow additional directives beyond these</span>
-      </label>
+      <span style={{ marginTop: 10 }}><Chip checked={parsed.allowExtras} onToggle={() => onChange(serializeCacheControl({ ...parsed, allowExtras: !(parsed.allowExtras) }))}>Allow additional directives beyond these</Chip></span>
     </div>
   );
 }
@@ -242,14 +208,7 @@ function OriginEditor({ value, onChange }: EditorProps) {
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setRows([...rows, ""])}>
         + Add origin
       </button>
-      <label className="csp-directive-check" style={{ marginTop: 10 }}>
-        <input
-          type="checkbox"
-          checked={parsed.wildcard}
-          onChange={(e) => update(rows, e.target.checked)}
-        />
-        <span>Allow wildcard (*)</span>
-      </label>
+      <span style={{ marginTop: 10 }}><Chip checked={parsed.wildcard} onToggle={() => update(rows, !(parsed.wildcard))}>Allow wildcard (*)</Chip></span>
     </div>
   );
 }
@@ -351,14 +310,7 @@ function XssEditor({ value, onChange }: EditorProps) {
         <option value="1">1 — protection enabled</option>
       </select>
       {parsed.enabled === "1" && (
-        <label className="csp-directive-check">
-          <input
-            type="checkbox"
-            checked={parsed.modeBlock}
-            onChange={(e) => onChange(serializeXss({ ...parsed, modeBlock: e.target.checked }))}
-          />
-          <span className="mono">mode=block</span>
-        </label>
+        <Chip checked={parsed.modeBlock} onToggle={() => onChange(serializeXss({ ...parsed, modeBlock: !(parsed.modeBlock) }))} mono>mode=block</Chip>
       )}
     </div>
   );
@@ -388,22 +340,8 @@ function XFrameOptionsEditor({ value, onChange }: EditorProps) {
   return (
     <div>
       <div className="csp-directive-checks">
-        <label className="csp-directive-check">
-          <input
-            type="checkbox"
-            checked={parsed.deny}
-            onChange={(e) => update(origins, { deny: e.target.checked })}
-          />
-          <span className="mono">DENY</span>
-        </label>
-        <label className="csp-directive-check">
-          <input
-            type="checkbox"
-            checked={parsed.sameorigin}
-            onChange={(e) => update(origins, { sameorigin: e.target.checked })}
-          />
-          <span className="mono">SAMEORIGIN</span>
-        </label>
+        <Chip checked={parsed.deny} onToggle={() => update(origins, { deny: !(parsed.deny) })} mono>DENY</Chip>
+        <Chip checked={parsed.sameorigin} onToggle={() => update(origins, { sameorigin: !(parsed.sameorigin) })} mono>SAMEORIGIN</Chip>
       </div>
 
       <div className="hv-group-label" style={{ marginTop: 10 }}>
@@ -445,21 +383,21 @@ function EnumEditor({ headerName, value, onChange }: EditorProps & { headerName:
     <div>
       <div className="csp-directive-checks">
         {options.map((option) => (
-          <label className="csp-directive-check" key={option}>
-            <input
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={(e) =>
-                onChange(
-                  serializeEnum(
-                    headerName,
-                    e.target.checked ? [...selected, option] : selected.filter((s) => s !== option)
-                  )
+          <Chip
+            key={option}
+            mono
+            checked={selected.includes(option)}
+            onToggle={() =>
+              onChange(
+                serializeEnum(
+                  headerName,
+                  selected.includes(option) ? selected.filter((s) => s !== option) : [...selected, option]
                 )
-              }
-            />
-            <span className="mono">{option}</span>
-          </label>
+              )
+            }
+          >
+            {option}
+          </Chip>
         ))}
       </div>
       {options.length > 1 && (

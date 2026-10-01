@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthThemeLock } from "@/components/AuthThemeLock";
 import { ShieldLogo } from "@/components/ShieldLogo";
 
 const FEATURES = [
@@ -20,6 +21,7 @@ export function AuthLayout({
 }) {
   return (
     <div className="auth-shell">
+      <AuthThemeLock />
       <div className="auth-visual">
         <span className="auth-blob auth-blob-1" />
         <span className="auth-blob auth-blob-2" />
