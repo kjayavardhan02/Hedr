@@ -17,6 +17,39 @@
   - **Fair scoring** — headers that don't apply (e.g. CSP on a JSON API) show as **N/A** and never lower your score.
   - **Progress tracking** — see what improved or got worse since the last scan.
 
+## What can it do?
+
+- **Scan three ways:**
+  - A live **URL** — Hedr fetches it and reads the headers.
+  - A pasted **raw HTTP response** — for sites you can't reach from the server.
+  - A **Burp Suite history** import — check many endpoints at once.
+- **Policies:**
+  - Write your own, or start from built-in baselines (Basic, Strict, SaaS, Fintech).
+  - Policies are versioned, and can be cloned.
+- **Target types:** Web Application, REST API, API Gateway or Custom, so only relevant headers are checked.
+- **Content-Security-Policy analysis:** checks your CSP against your policy and against common best practices.
+- **Score and grade** for every scan (A–F), saved automatically as a report.
+- **History:**
+  - Compare a scan with the previous one for the same target.
+  - Track the score over time.
+- **Export** results as PDF, CSV, JSON, or Excel (Burp imports).
+- **AI explanations (optional):** a plain-English "why it matters and how to fix it" for any failing header.
+- **Two-factor sign-in (optional):** a one-time code sent to your email.
+- **Private by default:** every policy and report belongs only to your account.
+
+## How does it work?
+
+- **1. You choose** a target, a **target type** and a **policy**.
+- **2. Hedr gets the headers** — it fetches the URL from the server, or reads the response you pasted.
+- **3. It decides what applies** — using the target type, HTTP vs HTTPS and the response's content type. Headers that don't apply become **N/A**.
+- **4. It checks each header against your policy:**
+  - Values are compared by meaning, so spacing, ordering or casing differences don't cause false failures.
+  - CSP is analysed directive by directive.
+  - This is all **fixed rules** — the same input always gives the same result.
+- **5. It scores the scan** — only applicable checks count, so N/A never lowers the score.
+- **6. It saves a report** and compares it with your previous scan of the same target.
+- **7. AI is optional and only explains** — it never decides pass or fail.
+
 ## How to use it
 
 ### 1. Install and run
