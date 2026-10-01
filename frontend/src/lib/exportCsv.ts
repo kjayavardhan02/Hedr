@@ -1,4 +1,5 @@
 import { downloadBlob, slugify, todayStamp } from "./download";
+import { targetTypeLabel } from "./targetType";
 import type { CheckResult, ScanReport, ScanReportSummary, ScanResult } from "./types";
 
 // Report data includes attacker-influenced text (header values, target names).
@@ -18,10 +19,11 @@ function toCsv(rows: unknown[][]): string {
 /** One row per report - the list view as a spreadsheet. */
 export function downloadReportsCsv(reports: ScanReportSummary[], filtered: boolean): void {
   const rows: unknown[][] = [
-    ["scan_number", "target", "source", "policy", "policy_version", "scanned_at", "score", "grade", "headers_evaluated"],
+    ["scan_number", "target", "target_type", "source", "policy", "policy_version", "scanned_at", "score", "grade", "headers_evaluated"],
     ...reports.map((r) => [
       r.scan_number,
       r.target,
+      targetTypeLabel(r.target_type),
       r.source,
       r.policy_name,
       r.policy_version,
@@ -41,7 +43,7 @@ export function downloadReportsCsv(reports: ScanReportSummary[], filtered: boole
 /** One row per finding of a single report: each header, then each CSP check. */
 export function downloadReportCsv(data: ScanReport | ScanResult): void {
   const scanNumber = "scan_number" in data ? data.scan_number : "";
-  const context = [scanNumber, data.target, data.policy_name];
+  const context = [scanNumber, data.target, targetTypeLabel(data.target_type), data.policy_name];
 
   const cspRow = (section: string, c: CheckResult) => [
     ...context,
@@ -52,20 +54,55 @@ export function downloadReportCsv(data: ScanReport | ScanResult): void {
     c.expected,
     c.actual,
     c.description,
+    "Applicable",
+    "",
   ];
 
+  const csp = data.csp_finding;
   const rows: unknown[][] = [
-    ["scan_number", "target", "policy", "section", "name", "status", "severity", "expected", "actual", "recommendation"],
+    [
+      "scan_number",
+      "target",
+      "target_type",
+      "policy",
+      "section",
+      "name",
+      "status",
+      "severity",
+      "expected",
+      "actual",
+      "recommendation",
+      "applicability",
+      "applicability_reason",
+    ],
     ...data.findings.map((f) => [
       ...context,
       "Header",
       f.header,
-      f.status,
+      f.status === "NOT_APPLICABLE" ? "N/A" : f.status,
       f.severity,
       f.policy_expected,
       f.actual_value,
       f.recommendation,
+      f.applicable === false ? "Not applicable" : "Applicable",
+      f.applicability_reason,
     ]),
+    ...(csp && csp.applicable === false
+      ? [
+          [
+            ...context,
+            "CSP",
+            "Content-Security-Policy",
+            "N/A",
+            "",
+            "",
+            csp.actual_value,
+            "",
+            "Not applicable",
+            csp.applicability_reason,
+          ],
+        ]
+      : []),
     ...(data.csp_finding?.policy_checks ?? []).map((c) => cspRow("CSP policy check", c)),
     ...(data.csp_finding?.security_checks ?? []).map((c) => cspRow("CSP best practice", c)),
   ];

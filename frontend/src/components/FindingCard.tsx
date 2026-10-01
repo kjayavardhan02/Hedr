@@ -13,7 +13,8 @@ export function FindingCard({
   finding: HeaderFinding;
   index?: number;
 }) {
-  const [open, setOpen] = useState(finding.status !== "PASS");
+  const notApplicable = finding.status === "NOT_APPLICABLE";
+  const [open, setOpen] = useState(finding.status !== "PASS" && !notApplicable);
 
   return (
     <div
@@ -33,19 +34,27 @@ export function FindingCard({
           <span className={`chevron ${open ? "open" : ""}`}>▶</span>
           <StatusBadge status={finding.status} />
           <span>{finding.header}</span>
-          <span className="severity">{finding.severity}</span>
+          {finding.severity && <span className="severity">{finding.severity}</span>}
           {finding.required && finding.status === "FAIL" && !finding.present && (
             <span className="pill">missing</span>
           )}
         </div>
-        <span className="finding-score">
-          {finding.score_earned}/{finding.score_possible}
-        </span>
+        {!notApplicable && (
+          <span className="finding-score">
+            {finding.score_earned}/{finding.score_possible}
+          </span>
+        )}
       </div>
 
       <div className={`collapse ${open ? "open" : ""}`}>
         <div className="collapse-inner">
           <div style={{ paddingTop: 10 }}>
+            {notApplicable && (
+              <div className="value-row">
+                <span className="field-hint">Reason:</span>
+                <span className="na-reason">{finding.applicability_reason ?? "Not applicable to this target."}</span>
+              </div>
+            )}
             {finding.policy_expected && (
               <div className="value-row">
                 <span className="field-hint">Policy expects:</span>
@@ -116,7 +125,7 @@ export function FindingCard({
               </div>
             ))}
 
-            {finding.status !== "PASS" && (
+            {finding.status !== "PASS" && !notApplicable && (
               <AIExplain
                 name={finding.header}
                 policyExpected={finding.policy_expected}

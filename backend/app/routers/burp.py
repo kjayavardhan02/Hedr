@@ -122,11 +122,12 @@ def analyze_burp_import(
 
     entries = [entry_from_dict(e) for e in record.parsed_entries]
     apply_filters(entries, _to_burp_filters(payload.filters))
-    analysis = build_analysis(entries, resolved)
+    analysis = build_analysis(entries, resolved, payload.target_type)
 
     record.policy_id = resolved.policy.id
     record.policy_name = resolved.policy_name
     record.policy_version = resolved.policy_version
+    record.target_type = payload.target_type.value
     record.filters = payload.filters.model_dump(mode="json")
     record.analysis = analysis.model_dump(mode="json")
     record.score = analysis.summary.overall_score

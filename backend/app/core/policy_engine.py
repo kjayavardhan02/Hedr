@@ -7,6 +7,13 @@ import uuid
 from datetime import datetime, timezone
 
 from app.core import csp_analyzer
+from app.core.applicability import (
+    DEFAULT_TARGET_TYPE,
+    build_breakdown,
+    check_applicability,
+    not_applicable_csp_finding,
+    not_applicable_finding,
+)
 from app.core.comparators import get_comparator, normalize_origin, parse_allow_from
 from app.core.csp_findings import CSPFindingId, severity_for
 from app.core.remediation import explain_failure
@@ -22,6 +29,7 @@ from app.schemas import (
     ScanResult,
     ScanSource,
     Status,
+    TargetType,
 )
 
 CSP_HEADER_NAME = "content-security-policy"
@@ -296,6 +304,18 @@ def _csp_score(csp_finding: CSPFinding, weight: float) -> tuple[float, float]:
     return round(weight * csp_finding.overall_score / 100, 2), weight
 
 
+def _infer_is_https(*candidates: str | None) -> bool | None:
+    """True/False from the first candidate that is an http(s) URL; None when
+    none is (the scheme is unknown, so HSTS is not excused)."""
+    for candidate in candidates:
+        lowered = (candidate or "").strip().lower()
+        if lowered.startswith("https://"):
+            return True
+        if lowered.startswith("http://"):
+            return False
+    return None
+
+
 def run_scan(
     *,
     raw_headers: dict[str, str],
@@ -306,15 +326,46 @@ def run_scan(
     fetched_status_code: int | None,
     csp_policy: CSPPolicy | None = None,
     target_url: str | None = None,
+    target_type: TargetType = DEFAULT_TARGET_TYPE,
+    is_https: bool | None = None,
+    content_type: str | None = None,
 ) -> ScanResult:
+    """`is_https=None` infers the scheme from `target_url`/`target`. Headers
+    that don't apply to this target type / response (see
+    app.core.applicability) are reported as NOT_APPLICABLE and kept out of
+    the score entirely - they add nothing to the numerator or denominator."""
     findings: list[HeaderFinding] = []
     earned_total = 0.0
     possible_total = 0.0
+
+    if is_https is None:
+        is_https = _infer_is_https(target_url, target)
+    # An explicit content type wins (Burp can recover one from its mimetype
+    # hint when the response carried no Content-Type header).
+    content_type = content_type or raw_headers.get("content-type")
 
     # policy_headers can never contain a Content-Security-Policy entry -
     # that's enforced at the schema layer (PolicyCreate rejects it) - so the
     # generic per-header engine never needs to know CSP exists.
     for ph in policy_headers:
+        applicability = check_applicability(
+            ph.header_name,
+            target_type=target_type,
+            is_https=is_https,
+            content_type=content_type,
+            header_present=ph.header_name.strip().lower() in raw_headers,
+        )
+        if not applicability.applicable:
+            findings.append(
+                not_applicable_finding(
+                    header_name=ph.header_name.strip(),
+                    required=ph.required,
+                    policy_expected=ph.expected_value or None,
+                    actual_value=raw_headers.get(ph.header_name.strip().lower()),
+                    reason=applicability.reason or "Not applicable.",
+                )
+            )
+            continue
         finding = evaluate_header(ph, raw_headers)
         findings.append(finding)
         earned_total += finding.score_earned
@@ -322,11 +373,24 @@ def run_scan(
 
     csp_finding: CSPFinding | None = None
     if csp_policy is not None:
-        csp_finding = evaluate_csp(csp_policy, raw_headers)
-        csp_weight = get_weight(CSP_HEADER_NAME)
-        earned, possible = _csp_score(csp_finding, csp_weight)
-        earned_total += earned
-        possible_total += possible
+        csp_applicability = check_applicability(
+            CSP_HEADER_NAME,
+            target_type=target_type,
+            is_https=is_https,
+            content_type=content_type,
+            header_present=CSP_HEADER_NAME in raw_headers,
+        )
+        if csp_applicability.applicable:
+            csp_finding = evaluate_csp(csp_policy, raw_headers)
+            csp_weight = get_weight(CSP_HEADER_NAME)
+            earned, possible = _csp_score(csp_finding, csp_weight)
+            earned_total += earned
+            possible_total += possible
+        else:
+            csp_finding = not_applicable_csp_finding(
+                actual_value=raw_headers.get(CSP_HEADER_NAME),
+                reason=csp_applicability.reason or "Not applicable.",
+            )
 
     score = round((earned_total / possible_total) * 100, 1) if possible_total > 0 else 100.0
 
@@ -345,4 +409,6 @@ def run_scan(
         raw_headers=raw_headers,
         scanned_at=datetime.now(timezone.utc),
         scanner_version=SCANNER_VERSION,
+        target_type=target_type,
+        breakdown=build_breakdown(findings, csp_finding),
     )

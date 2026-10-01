@@ -41,6 +41,15 @@ def ensure_schema(bind=engine) -> None:
     if "target_url" not in existing:
         with bind.begin() as conn:
             conn.execute(text("ALTER TABLE scan_reports ADD COLUMN target_url VARCHAR"))
+    if "target_type" not in existing:
+        with bind.begin() as conn:
+            conn.execute(text("ALTER TABLE scan_reports ADD COLUMN target_type VARCHAR"))
+
+    if "burp_imports" in inspector.get_table_names():
+        existing_burp_cols = {c["name"] for c in inspector.get_columns("burp_imports")}
+        if "target_type" not in existing_burp_cols:
+            with bind.begin() as conn:
+                conn.execute(text("ALTER TABLE burp_imports ADD COLUMN target_type VARCHAR"))
 
     if "users" in inspector.get_table_names():
         existing_user_cols = {c["name"] for c in inspector.get_columns("users")}

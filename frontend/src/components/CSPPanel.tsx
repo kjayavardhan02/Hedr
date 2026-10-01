@@ -46,6 +46,25 @@ function ChecksTable({ rows }: { rows: CSPFinding["policy_checks"] }) {
 }
 
 export function CSPPanel({ csp }: { csp: CSPFinding }) {
+  if (csp.applicable === false) {
+    // Skipped, not evaluated: no checks, severity, score or advice - just why.
+    return (
+      <div className="panel fade-in-up">
+        <div className="finding-title">
+          <StatusBadge status="NOT_APPLICABLE" />
+          <span>Content-Security-Policy</span>
+        </div>
+        <div className="value-row" style={{ marginTop: 10 }}>
+          <span className="field-hint">Reason:</span>
+          <span className="na-reason">{csp.applicability_reason ?? "Not applicable to this target."}</span>
+        </div>
+      </div>
+    );
+  }
+  return <CSPPanelBody csp={csp} />;
+}
+
+function CSPPanelBody({ csp }: { csp: CSPFinding }) {
   const [open, setOpen] = useState(true);
   const allChecks = [...csp.policy_checks, ...csp.security_checks];
   const failCount = allChecks.filter((c) => c.status === "FAIL").length;

@@ -1,4 +1,5 @@
-import type { HeaderFinding } from "@/lib/types";
+import type { HeaderFinding, ScoreBreakdown } from "@/lib/types";
+import { targetTypeLabel, type TargetType } from "@/lib/targetType";
 import { ScoreRing } from "./ScoreRing";
 
 function takeaway(grade: string, failCount: number): string {
@@ -22,6 +23,9 @@ interface ScoreHeroData {
   target_url?: string | null;
   fetched_status_code: number | null;
   findings: HeaderFinding[];
+  /** Applicable/passed/failed/N/A counts; absent only on very old payloads. */
+  breakdown?: ScoreBreakdown | null;
+  target_type?: TargetType | null;
 }
 
 // Colors the tinted variant the same way the comparison card is tinted.
@@ -32,8 +36,14 @@ function toneFor(grade: string): "up" | "warn" | "down" {
 }
 
 export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; tinted?: boolean }) {
-  const passCount = result.findings.filter((f) => f.status === "PASS").length;
-  const failCount = result.findings.filter((f) => f.status === "FAIL").length;
+  // Prefer the server's breakdown (it also counts the CSP check); fall back to
+  // the header findings for payloads that predate it.
+  const passCount = result.breakdown?.passed ?? result.findings.filter((f) => f.status === "PASS").length;
+  const failCount = result.breakdown?.failed ?? result.findings.filter((f) => f.status === "FAIL").length;
+  const naCount =
+    result.breakdown?.not_applicable ?? result.findings.filter((f) => f.status === "NOT_APPLICABLE").length;
+  const applicableCount = result.breakdown?.applicable ?? passCount + failCount;
+  const targetTypeText = result.target_type ? targetTypeLabel(result.target_type) : null;
 
   if (tinted) {
     return (
@@ -54,6 +64,11 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
                 "Parsed from pasted response"
               )}
             </div>
+            {targetTypeText && (
+              <div className="field-hint" style={{ marginTop: 2 }}>
+                Target type: <strong>{targetTypeText}</strong>
+              </div>
+            )}
           </div>
         </div>
         <div className="cmp-tiles">
@@ -65,6 +80,12 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
             <span className="cmp-tile-value">{failCount}</span>
             <span className="cmp-tile-label">Failed</span>
           </div>
+          {naCount > 0 && (
+            <div className="cmp-tile is-zero">
+              <span className="cmp-tile-value">{naCount}</span>
+              <span className="cmp-tile-label">N/A</span>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -94,10 +115,25 @@ export function ScoreHero({ result, tinted = false }: { result: ScoreHeroData; t
               "Parsed from pasted response"
             )}
           </div>
+          {targetTypeText && (
+            <div className="field-hint" style={{ marginTop: 4 }}>
+              Target type: <strong>{targetTypeText}</strong>
+            </div>
+          )}
           <div style={{ marginTop: 8, fontSize: 13 }}>
             <span style={{ color: "var(--pass)" }}>{passCount} passed</span>
             {"  ·  "}
             <span style={{ color: "var(--fail)" }}>{failCount} failed</span>
+            {naCount > 0 && (
+              <>
+                {"  ·  "}
+                <span style={{ color: "var(--text-dim)" }}>{naCount} N/A</span>
+              </>
+            )}
+          </div>
+          <div className="field-hint" style={{ marginTop: 4 }}>
+            Score is based on {applicableCount} applicable check{applicableCount === 1 ? "" : "s"}
+            {naCount > 0 ? `; ${naCount} not applicable ${naCount === 1 ? "is" : "are"} excluded` : ""}.
           </div>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -102,6 +103,47 @@ class Policy(Base):
     )
 
 
+class UserMFA(Base):
+    """A user's multi-factor-authentication configuration. Kept apart from
+    the User row (and from the short-lived OTP challenges) so authentication
+    settings don't get mixed into the account record. A user with no row, or
+    enabled=False, signs in with just their password."""
+
+    __tablename__ = "user_mfa"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, onupdate=_now)
+
+
+class EmailOTPChallenge(Base):
+    """One issued email one-time code. Only a keyed hash of the code is stored
+    (never the code), bound to this row's id, the user and the purpose, so a
+    code issued for one user or action can't satisfy another. For a login the
+    row id doubles as the opaque `challenge_id` the client holds between the
+    password step and the code step - it is not a session."""
+
+    __tablename__ = "email_otp_challenges"
+
+    # Unguessable: the login flow hands this to the client as its challenge id.
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: secrets.token_urlsafe(32))
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False, index=True)
+    # mfa_enable | mfa_login | mfa_disable
+    purpose: Mapped[str] = mapped_column(String, nullable=False)
+    otp_hash: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Set when the code is consumed, voided by too many wrong guesses, or
+    # superseded by a re-send. A row with used_at set is dead.
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, index=True)
+    # When the password step of this sign-in happened (copied forward on a
+    # re-send), so a sign-in can't be kept alive indefinitely by re-sending.
+    chain_started_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+
+
 class ScanReport(Base):
     """A saved scan result. Deliberately does NOT store the raw response
     headers - only the per-header findings the policy actually evaluated
@@ -146,6 +188,9 @@ class ScanReport(Base):
     # `target` is already the fetched URL, and for raw scans given no URL.
     target_url: Mapped[str | None] = mapped_column(String, nullable=True)
     fetched_status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # TargetType value ("web_application" | "rest_api" | "api_gateway"); null
+    # for reports saved before target types existed.
+    target_type: Mapped[str | None] = mapped_column(String, nullable=True)
     score: Mapped[float] = mapped_column(Float, nullable=False)
     grade: Mapped[str] = mapped_column(String, nullable=False)
     # List[HeaderFinding-shaped dicts], scoped to only the headers the
@@ -156,11 +201,18 @@ class ScanReport(Base):
     scanned_at: Mapped[datetime] = mapped_column(UTCDateTime, default=_now, index=True)
 
     @property
+    def breakdown(self):
+        from app.core.applicability import build_breakdown
+
+        return build_breakdown(self.findings or [], self.csp_finding)
+
+    @property
     def headers_evaluated(self) -> int:
-        """Count of headers this scan actually evaluated - the findings
-        plus one more if CSP was checked (CSP isn't in `findings`, it has
-        its own dedicated finding)."""
-        return len(self.findings or []) + (1 if self.csp_finding else 0)
+        """Count of headers this scan actually evaluated - applicable
+        findings plus the CSP finding when CSP was checked and applicable
+        (CSP isn't in `findings`, it has its own dedicated finding). Headers
+        skipped as not applicable are not "evaluated"."""
+        return self.breakdown.applicable
 
 
 class BurpImport(Base):
@@ -193,6 +245,8 @@ class BurpImport(Base):
     policy_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     policy_name: Mapped[str | None] = mapped_column(String, nullable=True)
     policy_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    # TargetType value the analysis was run with; null before it existed.
+    target_type: Mapped[str | None] = mapped_column(String, nullable=True)
     filters: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # BurpAnalysisResult-shaped dict (see schemas.py) - the single normalized
     # result the UI, Reports, and (later) Excel export all read from.

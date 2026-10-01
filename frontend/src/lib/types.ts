@@ -1,7 +1,17 @@
 import type { AccentColor } from "./accent";
 import type { Theme } from "./theme";
+import type { TargetType } from "./targetType";
 
-export type Status = "PASS" | "FAIL" | "WARNING" | "INFO";
+export type Status = "PASS" | "FAIL" | "WARNING" | "INFO" | "NOT_APPLICABLE";
+
+/** How a score's denominator was built: only applicable checks count, so
+ * `applicable === passed + failed`; N/A checks are reported alongside. */
+export interface ScoreBreakdown {
+  applicable: number;
+  passed: number;
+  failed: number;
+  not_applicable: number;
+}
 
 /** Every valid value for a user's stored theme preference. Re-exports
  * `Theme` (lib/theme.ts, the single source of truth) under the name these
@@ -162,7 +172,8 @@ export interface HeaderFinding {
   required: boolean;
   present: boolean;
   status: Status;
-  severity: "low" | "medium" | "high" | "critical" | "info";
+  /** Null for a not-applicable header - it has no severity. */
+  severity: "low" | "medium" | "high" | "critical" | "info" | null;
   weight: number;
   score_earned: number;
   score_possible: number;
@@ -174,11 +185,16 @@ export interface HeaderFinding {
   /** How to fix it. */
   recommendation: string | null;
   advisories?: Advisory[];
+  /** False when skipped as not applicable (absent on reports saved before applicability existed = applicable). */
+  applicable?: boolean;
+  applicability_reason?: string | null;
 }
 
 export interface CSPFinding {
   present: boolean;
   actual_value: string | null;
+  applicable?: boolean;
+  applicability_reason?: string | null;
   policy_checks: CheckResult[];
   security_checks: CheckResult[];
   directives: Record<string, string[]>;
@@ -205,6 +221,8 @@ export interface ScanResult {
   raw_headers: Record<string, string>;
   scanned_at: string;
   scanner_version?: string | null;
+  target_type?: TargetType | null;
+  breakdown?: ScoreBreakdown | null;
 }
 
 export interface ScanReportSummary {
@@ -222,6 +240,8 @@ export interface ScanReportSummary {
   score: number;
   grade: string;
   scanned_at: string;
+  /** Null for reports saved before target types existed ("Not recorded"). */
+  target_type?: TargetType | null;
 }
 
 export interface ScanReport {
@@ -241,6 +261,8 @@ export interface ScanReport {
   csp_finding: CSPFinding | null;
   scanned_at: string;
   scanner_version?: string | null;
+  target_type?: TargetType | null;
+  breakdown?: ScoreBreakdown | null;
 }
 
 export interface ComparisonReportRef {
@@ -248,6 +270,7 @@ export interface ComparisonReportRef {
   scan_number: number;
   target: string | null;
   target_url?: string | null;
+  target_type?: TargetType | null;
   score: number;
   grade: string;
   scanned_at: string;
@@ -267,6 +290,15 @@ export interface HeaderChanged {
   header: string;
   previous_value: string | null;
   latest_value: string | null;
+}
+
+export interface ApplicabilityChange {
+  header: string;
+  previous_applicable: boolean;
+  latest_applicable: boolean;
+  previous_status: Status;
+  latest_status: Status;
+  reason: string | null;
 }
 
 export interface FindingRef {
@@ -327,6 +359,7 @@ export interface ComparisonSummary {
   findings_resolved: number;
   findings_new: number;
   severity_changes: number;
+  applicability_changes?: number;
 }
 
 export interface ComparisonChanges {
@@ -337,6 +370,7 @@ export interface ComparisonChanges {
   findings_new: FindingRef[];
   severity_changes: SeverityChange[];
   csp_changes: CSPChanges | null;
+  applicability_changes?: ApplicabilityChange[];
 }
 
 export interface ComparisonResponse {
@@ -352,6 +386,8 @@ export interface ComparisonResponse {
   previous_report: ComparisonReportRef | null;
   latest_report: ComparisonReportRef | null;
   summary: ComparisonSummary | null;
+  /** True when both scans recorded a target type and they differ. */
+  target_type_changed?: boolean;
   changes: ComparisonChanges | null;
 }
 
@@ -377,6 +413,7 @@ export interface ScanRequestPayload {
   raw_response?: string;
   target_name?: string;
   target_url?: string;
+  target_type?: TargetType;
   policy_id?: string;
   policy?: PolicyCreatePayload;
 }
@@ -404,6 +441,7 @@ export interface DashboardBurpImport {
   name: string;
   policy_name: string | null;
   policy_version: string | null;
+  target_type?: TargetType | null;
   score: number | null;
   responses_analyzed: number;
   imported_at: string;
@@ -505,6 +543,7 @@ export interface BurpAnalyzeRequestPayload {
   policy_id: string;
   filters?: BurpFiltersPayload;
   name?: string;
+  target_type?: TargetType;
 }
 
 export type HeaderCoverageStatus = "present" | "missing" | "invalid" | "not_applicable";
@@ -512,6 +551,8 @@ export type HeaderCoverageStatus = "present" | "missing" | "invalid" | "not_appl
 export interface BurpHeaderResult {
   header: string;
   status: HeaderCoverageStatus;
+  /** Why the header was skipped; set only when status is "not_applicable". */
+  applicability_reason?: string | null;
   actual_value: string | null;
   expected_value: string | null;
   severity: SeverityLevel | null;
@@ -580,9 +621,12 @@ export interface BurpAnalysisSummary {
   overall_score: number;
   responses_with_findings: number;
   severity_counts: Record<string, number>;
+  /** Header checks across all responses, N/A kept out of applicable/passed/failed. */
+  checks?: ScoreBreakdown | null;
 }
 
 export interface BurpAnalysisResult {
+  target_type?: TargetType | null;
   summary: BurpAnalysisSummary;
   host_summary: BurpHostSummaryRow[];
   header_coverage: BurpHeaderCoverageRow[];
@@ -616,8 +660,40 @@ export interface BurpImportDetail {
   policy_id: string | null;
   policy_name: string | null;
   policy_version: string | null;
+  target_type?: TargetType | null;
   filters: BurpFiltersPayload | null;
   imported_at: string;
   analyzed_at: string | null;
   analysis: BurpAnalysisResult | null;
+}
+
+
+// --- Multi-factor authentication (email one-time codes) -----------------------
+
+export interface MFAStatus {
+  enabled: boolean;
+  /** e.g. "j******@example.com" - never the full address. */
+  masked_email: string;
+  /** False when the server has no SMTP settings, so codes can't be sent. */
+  email_configured: boolean;
+}
+
+/** A code was emailed. Times are in seconds. */
+export interface MFACodeIssued {
+  masked_email: string;
+  expires_in: number;
+  resend_available_in: number;
+}
+
+/** What POST /api/auth/login returns instead of a user when MFA is on. NOT a
+ * session - the code still has to be submitted. */
+export interface MFALoginChallenge extends MFACodeIssued {
+  mfa_required: true;
+  challenge_id: string;
+}
+
+export type LoginResult = User | MFALoginChallenge;
+
+export function isMfaChallenge(result: LoginResult): result is MFALoginChallenge {
+  return (result as MFALoginChallenge).mfa_required === true;
 }

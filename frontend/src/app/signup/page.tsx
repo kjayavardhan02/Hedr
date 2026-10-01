@@ -55,7 +55,7 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       await register(email.trim(), password, firstName.trim(), lastName.trim());
-      router.push("/dashboard");
+      router.push("/login?registered=1");
     } catch (err) {
       fail(err instanceof ApiError ? err.message : "Sign up failed unexpectedly.");
     } finally {

@@ -299,6 +299,60 @@ class PolicyOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Multi-factor authentication (email one-time codes)
+# ---------------------------------------------------------------------------
+
+_OTP_CODE_PATTERN = r"^\d{6}$"
+
+
+class MFAStatusOut(BaseModel):
+    enabled: bool
+    masked_email: str
+    # False when the server has no SMTP settings - enabling MFA would fail.
+    email_configured: bool = True
+
+
+class MFACodeIssuedOut(BaseModel):
+    """A code was emailed. `resend_available_in` is the cooldown, in seconds."""
+
+    masked_email: str
+    expires_in: int
+    resend_available_in: int
+
+
+class MFALoginChallengeOut(BaseModel):
+    """Returned by POST /api/auth/login instead of a user when the account has
+    MFA on. NOT a session: `challenge_id` only lets the caller submit the code."""
+
+    mfa_required: Literal[True] = True
+    challenge_id: str
+    masked_email: str
+    expires_in: int
+    resend_available_in: int
+
+
+class MFACodeIn(BaseModel):
+    code: str = Field(..., pattern=_OTP_CODE_PATTERN)
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def _strip(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class MFALoginVerifyIn(MFACodeIn):
+    challenge_id: str = Field(..., min_length=1, max_length=200)
+
+
+class MFALoginResendIn(BaseModel):
+    challenge_id: str = Field(..., min_length=1, max_length=200)
+
+
+class MFADisableRequestIn(BaseModel):
+    password: str = Field(..., min_length=1, max_length=200)
+
+
+# ---------------------------------------------------------------------------
 # Scan
 # ---------------------------------------------------------------------------
 
@@ -309,8 +363,21 @@ class ScanSource(str, Enum):
     burp = "burp"
 
 
+class TargetType(str, Enum):
+    """What kind of thing is being scanned - decides which headers apply (see
+    app.core.applicability). The stored/API value is the snake_case id, never
+    the display label."""
+
+    WEB_APPLICATION = "web_application"
+    REST_API = "rest_api"
+    API_GATEWAY = "api_gateway"
+
+
 class ScanRequest(BaseModel):
     source: ScanSource
+    # Defaults to Web Application, the behaviour every scan had before target
+    # types existed. An unknown value is rejected (422) by the enum.
+    target_type: TargetType = TargetType.WEB_APPLICATION
     url: str | None = Field(default=None, max_length=2000)
     raw_response: str | None = Field(default=None, max_length=200_000)
     # Only meaningful for source=raw, where there's no URL to label the
@@ -343,6 +410,9 @@ class Status(str, Enum):
     FAIL = "FAIL"
     WARNING = "WARNING"
     INFO = "INFO"
+    # The header does not apply to this target/response (see
+    # app.core.applicability). Never a pass, never a failure, never scored.
+    NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 class CheckResult(BaseModel):
@@ -376,12 +446,24 @@ class Advisory(BaseModel):
     recommendation: str | None = None
 
 
+class ScoreBreakdown(BaseModel):
+    """How the score's denominator was built: only applicable checks count,
+    so `applicable == passed + failed` and N/A checks are reported alongside
+    rather than inside the score."""
+
+    applicable: int
+    passed: int
+    failed: int
+    not_applicable: int
+
+
 class HeaderFinding(BaseModel):
     header: str
     required: bool
     present: bool
     status: Status
-    severity: Literal["low", "medium", "high", "critical", "info"]
+    # None for a not-applicable header: it has no severity.
+    severity: Literal["low", "medium", "high", "critical", "info"] | None
     weight: float
     score_earned: float
     score_possible: float
@@ -393,11 +475,18 @@ class HeaderFinding(BaseModel):
     issue: str | None = None
     recommendation: str | None = None
     advisories: list[Advisory] = Field(default_factory=list)
+    # False when the header was skipped as not applicable (status is then
+    # NOT_APPLICABLE and `applicability_reason` says why). Reports saved before
+    # applicability existed lack both fields and read as applicable.
+    applicable: bool = True
+    applicability_reason: str | None = None
 
 
 class CSPFinding(BaseModel):
     present: bool
     actual_value: str | None
+    applicable: bool = True
+    applicability_reason: str | None = None
     policy_checks: list[CheckResult] = Field(default_factory=list)
     security_checks: list[CheckResult] = Field(default_factory=list)
     directives: dict[str, list[str]] = Field(default_factory=dict)
@@ -428,6 +517,8 @@ class ScanResult(BaseModel):
     raw_headers: dict[str, str]
     scanned_at: datetime
     scanner_version: str | None = None
+    target_type: TargetType | None = None
+    breakdown: ScoreBreakdown | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +548,8 @@ class ScanReportSummary(BaseModel):
     grade: str
     scanned_at: datetime
     previous_report_id: str | None = None
+    # Null for reports saved before target types existed ("Not recorded").
+    target_type: TargetType | None = None
 
     class Config:
         from_attributes = True
@@ -484,6 +577,8 @@ class ScanReportOut(BaseModel):
     csp_finding: CSPFinding | None = None
     scanned_at: datetime
     scanner_version: str | None = None
+    target_type: TargetType | None = None
+    breakdown: ScoreBreakdown | None = None
 
     class Config:
         from_attributes = True
@@ -502,6 +597,7 @@ class ComparisonReportRef(BaseModel):
     scan_number: int
     target: str | None = None
     target_url: str | None = None
+    target_type: TargetType | None = None
     score: float
     grade: str
     scanned_at: datetime
@@ -521,6 +617,20 @@ class HeaderChanged(BaseModel):
     header: str
     previous_value: str | None
     latest_value: str | None
+
+
+class ApplicabilityChange(BaseModel):
+    """A header whose applicability flipped between the two scans. Reported
+    on its own - never as a resolved/new finding - because N/A <-> applicable
+    says nothing about the target's real security posture."""
+
+    header: str
+    previous_applicable: bool
+    latest_applicable: bool
+    # PASS/FAIL when applicable, NOT_APPLICABLE otherwise.
+    previous_status: Status
+    latest_status: Status
+    reason: str | None = None
 
 
 class FindingRef(BaseModel):
@@ -581,6 +691,7 @@ class ComparisonSummary(BaseModel):
     findings_resolved: int
     findings_new: int
     severity_changes: int
+    applicability_changes: int = 0
 
 
 class ComparisonChanges(BaseModel):
@@ -591,6 +702,7 @@ class ComparisonChanges(BaseModel):
     findings_new: list[FindingRef] = Field(default_factory=list)
     severity_changes: list[SeverityChange] = Field(default_factory=list)
     csp_changes: CSPChanges | None = None
+    applicability_changes: list[ApplicabilityChange] = Field(default_factory=list)
 
 
 class ComparisonResponse(BaseModel):
@@ -612,6 +724,8 @@ class ComparisonResponse(BaseModel):
     latest_report: ComparisonReportRef | None = None
     summary: ComparisonSummary | None = None
     changes: ComparisonChanges | None = None
+    # Set when both scans recorded a target type and they differ.
+    target_type_changed: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -829,11 +943,16 @@ class BurpAnalyzeRequest(BaseModel):
     policy_id: str
     filters: BurpFiltersIn = Field(default_factory=BurpFiltersIn)
     name: str | None = Field(default=None, max_length=100)
+    # Applies to the whole import (one file can hold many endpoints; per-endpoint
+    # classification is future work).
+    target_type: TargetType = TargetType.WEB_APPLICATION
 
 
 class HeaderResultOut(BaseModel):
     header: str
     status: HeaderCoverageStatus
+    # Why the header was skipped; only set when status is "not_applicable".
+    applicability_reason: str | None = None
     actual_value: str | None = None
     expected_value: str | None = None
     severity: Literal["low", "medium", "high", "critical", "info"] | None = None
@@ -904,6 +1023,9 @@ class BurpAnalysisSummaryOut(BaseModel):
     overall_score: float
     responses_with_findings: int
     severity_counts: dict[str, int]
+    # Header checks across every analyzed response, with N/A kept out of the
+    # applicable/passed/failed tallies. None on analyses saved before this.
+    checks: ScoreBreakdown | None = None
 
 
 class BurpAnalysisResult(BaseModel):
@@ -913,6 +1035,8 @@ class BurpAnalysisResult(BaseModel):
     section 33: "Analyze once, store normalized results, generate multiple
     views from the same result."."""
 
+    # Null on analyses saved before target types existed.
+    target_type: TargetType | None = None
     summary: BurpAnalysisSummaryOut
     host_summary: list[HostSummaryRow]
     header_coverage: list[HeaderCoverageRow]
@@ -930,6 +1054,7 @@ class BurpImportListItem(BaseModel):
     policy_id: str | None = None
     policy_name: str | None = None
     policy_version: str | None = None
+    target_type: TargetType | None = None
     score: float | None = None
     responses_analyzed: int
     responses_skipped: int
@@ -949,6 +1074,7 @@ class BurpImportOut(BaseModel):
     policy_id: str | None = None
     policy_name: str | None = None
     policy_version: str | None = None
+    target_type: TargetType | None = None
     filters: BurpFiltersIn | None = None
     imported_at: datetime
     analyzed_at: datetime | None = None

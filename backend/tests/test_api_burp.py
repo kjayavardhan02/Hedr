@@ -117,6 +117,32 @@ class TestAnalyze:
         assert len(hsts_findings) == 1
         assert hsts_findings[0]["affected_count"] == 1
 
+    def test_target_type_is_stored_and_defaults_to_web_application(self, auth_client):
+        client, _ = auth_client
+        policy_id = _baseline_policy_id(client)
+        summary = _upload(client)
+        resp = client.post(
+            f"/api/burp/{summary['id']}/analyze", json={"policy_id": policy_id, "target_type": "rest_api"}
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["target_type"] == "rest_api"
+        assert body["analysis"]["target_type"] == "rest_api"
+        assert body["analysis"]["summary"]["checks"] is not None
+
+        other = _upload(client)
+        default = client.post(f"/api/burp/{other['id']}/analyze", json={"policy_id": policy_id}).json()
+        assert default["target_type"] == "web_application"
+
+    def test_invalid_target_type_is_422(self, auth_client):
+        client, _ = auth_client
+        summary = _upload(client)
+        resp = client.post(
+            f"/api/burp/{summary['id']}/analyze",
+            json={"policy_id": _baseline_policy_id(client), "target_type": "Web Application"},
+        )
+        assert resp.status_code == 422
+
     def test_host_filter_narrows_analysis(self, auth_client):
         client, _ = auth_client
         summary = _upload(client)

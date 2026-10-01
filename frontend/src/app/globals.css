@@ -937,6 +937,18 @@ select:focus {
   color: var(--warn);
 }
 
+/* Neutral on purpose: N/A is never a pass (no green) and never a failure. */
+.badge-NOT_APPLICABLE {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-dim);
+}
+
+.na-reason {
+  font-size: 13.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
 .badge-INFO {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--info);
@@ -4378,4 +4390,76 @@ a {
 .policy-action-row .btn {
   flex-shrink: 0;
   padding: 9px 15px;
+}
+
+/* --- Multi-factor authentication (email one-time code) ------------------- */
+
+.mfa-lead {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.otp-input {
+  display: flex;
+  gap: 10px;
+}
+
+.otp-box {
+  width: 46px;
+  height: 54px;
+  padding: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--accent);
+}
+
+.otp-box-invalid {
+  border-color: var(--fail);
+}
+
+.mfa-expired {
+  color: var(--fail);
+}
+
+.mfa-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.mfa-resend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mfa-resend .link-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  text-decoration: none;
+}
+
+@media (max-width: 420px) {
+  .otp-input {
+    gap: 6px;
+  }
+  .otp-box {
+    width: 40px;
+    height: 48px;
+  }
+}
+
+.success-box {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  color: var(--pass);
+  background: color-mix(in srgb, var(--pass) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pass) 35%, transparent);
+  border-radius: 8px;
 }

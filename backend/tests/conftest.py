@@ -52,6 +52,9 @@ def auth_client(client):
         },
     )
     assert resp.status_code == 201, resp.text
+    # Registering no longer signs the user in - do that explicitly.
+    login = client.post("/api/auth/login", json={"email": email, "password": DEFAULT_PASSWORD})
+    assert login.status_code == 200, login.text
     return client, resp.json()
 
 
@@ -77,6 +80,8 @@ def make_user(client):
         )
         assert resp.status_code == 201, resp.text
         user = resp.json()
+        login = client.post("/api/auth/login", json={"email": email, "password": DEFAULT_PASSWORD})
+        assert login.status_code == 200, login.text
         created.append(user)
         return user
 

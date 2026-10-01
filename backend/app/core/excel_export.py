@@ -18,6 +18,7 @@ from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app import models
+from app.core.applicability import label as target_type_label
 from app.core.scoring import get_severity
 from app.schemas import BurpAnalysisResult, CSPPolicy, EndpointAnalysisOut, PolicyHeaderIn
 
@@ -188,10 +189,14 @@ _LEGEND = [
     (
         "Not Applicable",
         "The header does not apply to this response (e.g. HSTS on plain HTTP, CSP on a non-HTML response). "
-        "Left out of the pass/fail counts.",
+        "Left out of the pass/fail counts and the score.",
     ),
     (_EM_DASH + " (dash)", "No value to show: the header is Missing or Not Applicable, so there is nothing to display."),
-    ("Policy Score", "Per response: the percentage of policy checks that passed. The overall score is the average."),
+    (
+        "Policy Score",
+        "Per response: the percentage of applicable policy checks that passed (Not Applicable checks are "
+        "excluded). The overall score is the average.",
+    ),
     ("Coverage", "Per header: Present / (Present + Missing + Invalid), as a percentage. Not Applicable is excluded."),
     ("Critical / High / Medium / Low / Info", "How serious a Missing or Invalid finding is for that header."),
 ]
@@ -228,6 +233,7 @@ def _summary_sheet(wb: Workbook, record: models.BurpImport, analysis: BurpAnalys
     present = sum(r.present for r in analysis.header_coverage)
     failed_checks = sum(r.missing + r.invalid for r in analysis.header_coverage)
     total_checks = present + failed_checks
+    not_applicable_checks = sum(r.not_applicable for r in analysis.header_coverage)
 
     _section(ws, "Report Details", 2)
     details_row = ws.max_row
@@ -239,6 +245,7 @@ def _summary_sheet(wb: Workbook, record: models.BurpImport, analysis: BurpAnalys
             ("Policy", record.policy_name or ""),
             ("Policy Version", record.policy_version or ""),
             ("Analysis Type", "Burp History"),
+            ("Target Type", target_type_label(analysis.target_type)),
             ("Imported At", _readable_dt(record.imported_at)),
             ("Analyzed At", _readable_dt(record.analyzed_at)),
         ],
@@ -253,6 +260,7 @@ def _summary_sheet(wb: Workbook, record: models.BurpImport, analysis: BurpAnalys
             ("Responses Failed", f"{failed_responses} of {total_responses}"),
             ("Header Checks Passed", f"{present} of {total_checks}"),
             ("Header Checks Failed", f"{failed_checks} of {total_checks}"),
+            ("Header Checks Not Applicable", not_applicable_checks),
         ],
     )
     ws.append(
@@ -428,7 +436,7 @@ def _endpoint_analysis_sheet(wb: Workbook, record: models.BurpImport, analysis: 
     columns = ["Domain", "Path", "Method", "Status Code", "Content-Type"]
     for name in header_names:
         columns += [name, f"{name} Status"]
-    columns += ["Policy Score", "Findings"]
+    columns += ["Policy Score", "Findings", "Not Applicable (Reason)"]
     ws.append(columns)
 
     for endpoint in analysis.endpoints:
@@ -441,6 +449,7 @@ def _endpoint_analysis_sheet(wb: Workbook, record: models.BurpImport, analysis: 
             endpoint.content_type or "",
         ]
         failing: list[str] = []
+        not_applicable: list[str] = []
         for name in header_names:
             hr = by_header.get(name)
             if hr is None:
@@ -449,7 +458,13 @@ def _endpoint_analysis_sheet(wb: Workbook, record: models.BurpImport, analysis: 
             row += [_display_value(hr.status, hr.actual_value), _status_label(hr.status)]
             if hr.status in ("missing", "invalid"):
                 failing.append(f"{name} {hr.status}")
-        row += [f"{endpoint.policy_score}%", "; ".join(failing) if failing else "None"]
+            elif hr.status == "not_applicable":
+                not_applicable.append(f"{name}: {hr.applicability_reason or 'Not applicable.'}")
+        row += [
+            f"{endpoint.policy_score}%",
+            "; ".join(failing) if failing else "None",
+            "\n".join(not_applicable) if not_applicable else "None",
+        ]
         ws.append(row)
 
     _finish_data_sheet(ws, len(columns), len(analysis.endpoints))

@@ -26,15 +26,18 @@ class TestRegister:
         assert "password" not in body
         assert "hashed_password" not in body
 
-    def test_register_sets_httponly_cookie(self, client):
+    def test_register_does_not_sign_the_user_in(self, client):
         resp = client.post(
             "/api/auth/register",
             json={"email": "b@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS},
         )
-        set_cookie = resp.headers.get("set-cookie", "")
-        assert SESSION_COOKIE_NAME in set_cookie
-        assert "httponly" in set_cookie.lower()
-        assert "samesite=lax" in set_cookie.lower()
+        assert resp.status_code == 201
+        assert SESSION_COOKIE_NAME not in resp.headers.get("set-cookie", "")
+        assert client.get("/api/auth/me").status_code == 401
+        # ...but the new account can then sign in normally.
+        login = client.post("/api/auth/login", json={"email": "b@example.com", "password": DEFAULT_PASSWORD})
+        assert login.status_code == 200
+        assert client.get("/api/auth/me").status_code == 200
 
     def test_duplicate_email_rejected(self, client):
         payload = {"email": "dup@example.com", "password": DEFAULT_PASSWORD, **NAME_FIELDS}

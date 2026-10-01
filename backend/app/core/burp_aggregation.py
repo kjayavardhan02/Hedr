@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from app.core.applicability import DEFAULT_TARGET_TYPE
 from app.core.burp_import import BurpEntry, EntryStatus
 from app.core.policy_engine import run_scan
 from app.core.policy_resolution import ResolvedPolicy
@@ -27,6 +28,8 @@ from app.schemas import (
     ImportIssueOut,
     InconsistencyConfigOut,
     ScanSource,
+    ScoreBreakdown,
+    TargetType,
 )
 
 CSP_HEADER_NAME = "Content-Security-Policy"
@@ -37,19 +40,6 @@ CSP_HEADER_NAME = "Content-Security-Policy"
 MAX_AFFECTED_ENDPOINTS_PREVIEW = 50
 
 _MISSING_CONFIG_LABEL = "(missing)"
-
-
-def _is_applicable(header_name: str, *, is_https: bool, content_type: str | None) -> bool:
-    """MVP applicability heuristic (spec section 14 explicitly allows a
-    "simpler applicability model" for the first implementation): HSTS only
-    means anything over HTTPS; CSP is judged against HTML documents. Every
-    other header is treated as applicable everywhere."""
-    name = header_name.lower()
-    if name == "strict-transport-security":
-        return is_https
-    if name == "content-security-policy":
-        return bool(content_type) and content_type.split(";", 1)[0].strip().lower() == "text/html"
-    return True
 
 
 def _classify(*, present: bool, ok: bool, applicable: bool) -> str:
@@ -64,7 +54,10 @@ def _endpoint_label(domain: str, path: str) -> str:
     return f"{domain}{path}"
 
 
-def _build_header_results(scan_result, resolved_policy: ResolvedPolicy, *, is_https: bool, content_type: str | None) -> list[HeaderResultOut]:
+def _build_header_results(scan_result, resolved_policy: ResolvedPolicy) -> list[HeaderResultOut]:
+    """One result per policy header, read straight from the scan's findings -
+    applicability was already decided once, centrally, by the policy engine
+    (see app.core.applicability), so Burp has no applicability rules of its own."""
     results: list[HeaderResultOut] = []
     findings_by_name = {f.header.lower(): f for f in scan_result.findings}
 
@@ -72,12 +65,14 @@ def _build_header_results(scan_result, resolved_policy: ResolvedPolicy, *, is_ht
         finding = findings_by_name.get(policy_header.header_name.lower())
         if finding is None:
             continue
-        applicable = _is_applicable(finding.header, is_https=is_https, content_type=content_type)
-        status = _classify(present=finding.present, ok=finding.status == "PASS", applicable=applicable)
+        status = _classify(
+            present=finding.present, ok=finding.status == "PASS", applicable=finding.applicable
+        )
         results.append(
             HeaderResultOut(
                 header=finding.header,
                 status=status,
+                applicability_reason=finding.applicability_reason,
                 actual_value=finding.actual_value,
                 expected_value=policy_header.expected_value or None,
                 severity=finding.severity,
@@ -86,10 +81,14 @@ def _build_header_results(scan_result, resolved_policy: ResolvedPolicy, *, is_ht
 
     if resolved_policy.csp_policy is not None:
         csp = scan_result.csp_finding
-        applicable = _is_applicable(CSP_HEADER_NAME, is_https=is_https, content_type=content_type)
+        reason = None
         if csp is None:
-            status = "not_applicable" if not applicable else "missing"
+            status = "missing"
             actual_value = None
+        elif not csp.applicable:
+            status = "not_applicable"
+            reason = csp.applicability_reason
+            actual_value = csp.actual_value
         else:
             # Judge "ok" purely on policy-rule compliance, not the blended
             # overall_score - a CSP that satisfies the policy but trips a
@@ -97,22 +96,27 @@ def _build_header_results(scan_result, resolved_policy: ResolvedPolicy, *, is_ht
             # still POLICY-compliant, which is what Invalid vs Present means
             # here.
             policy_ok = csp.policy_checks_passed == csp.policy_checks_total
-            status = _classify(present=csp.present, ok=policy_ok, applicable=applicable)
+            status = _classify(present=csp.present, ok=policy_ok, applicable=True)
             actual_value = csp.actual_value
         results.append(
             HeaderResultOut(
                 header=CSP_HEADER_NAME,
                 status=status,
+                applicability_reason=reason,
                 actual_value=actual_value,
                 expected_value=None,
-                severity=get_severity(CSP_HEADER_NAME),
+                severity=None if status == "not_applicable" else get_severity(CSP_HEADER_NAME),
             )
         )
 
     return results
 
 
-def build_analysis(entries: list[BurpEntry], resolved_policy: ResolvedPolicy) -> BurpAnalysisResult:
+def build_analysis(
+    entries: list[BurpEntry],
+    resolved_policy: ResolvedPolicy,
+    target_type: TargetType = DEFAULT_TARGET_TYPE,
+) -> BurpAnalysisResult:
     survivors = [e for e in entries if e.status in (EntryStatus.PARSED, EntryStatus.PARTIAL)]
     issues = [e for e in entries if e.status in (EntryStatus.FAILED, EntryStatus.SKIPPED)]
 
@@ -128,13 +132,11 @@ def build_analysis(entries: list[BurpEntry], resolved_policy: ResolvedPolicy) ->
             fetched_status_code=entry.response.status_code,
             csp_policy=resolved_policy.csp_policy,
             target_url=None,
-        )
-        header_results = _build_header_results(
-            scan_result,
-            resolved_policy,
+            target_type=target_type,
             is_https=entry.is_https,
             content_type=entry.response.content_type,
         )
+        header_results = _build_header_results(scan_result, resolved_policy)
         has_findings = any(hr.status in ("missing", "invalid") for hr in header_results)
         endpoints.append(
             EndpointAnalysisOut(
@@ -158,6 +160,7 @@ def build_analysis(entries: list[BurpEntry], resolved_policy: ResolvedPolicy) ->
     import_issues = _build_import_issues(issues)
 
     return BurpAnalysisResult(
+        target_type=target_type,
         summary=summary,
         host_summary=host_summary,
         header_coverage=header_coverage,
@@ -180,7 +183,18 @@ def _build_summary(endpoints: list[EndpointAnalysisOut]) -> BurpAnalysisSummaryO
             if hr.status in ("missing", "invalid") and hr.severity:
                 severity_counts[hr.severity] += 1
 
+    statuses = [hr.status for e in endpoints for hr in e.header_results]
+    passed = statuses.count("present")
+    failed = statuses.count("missing") + statuses.count("invalid")
+    checks = ScoreBreakdown(
+        applicable=passed + failed,
+        passed=passed,
+        failed=failed,
+        not_applicable=statuses.count("not_applicable"),
+    )
+
     return BurpAnalysisSummaryOut(
+        checks=checks,
         responses_analyzed=len(endpoints),
         unique_hosts=len(unique_hosts),
         unique_paths=len(unique_paths),

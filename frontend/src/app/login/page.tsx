@@ -1,30 +1,43 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { ApiError } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
+import type { MFALoginChallenge } from "@/lib/types";
+import { MfaCodeStep } from "@/components/MfaCodeStep";
 import { Spinner } from "@/components/Spinner";
 import { AuthLayout } from "@/components/AuthLayout";
 import { PasswordField } from "@/components/PasswordField";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, completeMfaLogin } = useAuth();
   const emailId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  // Arriving from signup: the account exists but nobody is signed in yet.
+  const [justRegistered, setJustRegistered] = useState(false);
+  useEffect(() => {
+    setJustRegistered(new URLSearchParams(window.location.search).get("registered") === "1");
+  }, []);
+  // Set once the password was right but the account needs an emailed code.
+  const [challenge, setChallenge] = useState<MFALoginChallenge | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      const pending = await login(email.trim(), password);
+      if (pending) {
+        setChallenge(pending);
+        return;
+      }
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed unexpectedly.");
@@ -33,6 +46,42 @@ export default function LoginPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (challenge) {
+    return (
+      <AuthLayout
+        title="Verify your identity"
+        subtitle="Two-factor authentication is turned on for this account."
+        footer={<>Wrong account? <a href="/login">Back to log in</a></>}
+      >
+        <MfaCodeStep
+          issued={challenge}
+          verifyLabel="Verify"
+          onVerify={async (code) => {
+            await completeMfaLogin(challenge.challenge_id, code);
+            router.push("/dashboard");
+          }}
+          onResend={async () => {
+            const next = await api.mfaLoginResend(challenge.challenge_id);
+            setChallenge(next);
+            return next;
+          }}
+          secondary={
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setChallenge(null);
+                setPassword("");
+              }}
+            >
+              Back
+            </button>
+          }
+        />
+      </AuthLayout>
+    );
   }
 
   return (
@@ -45,6 +94,11 @@ export default function LoginPage() {
         </>
       }
     >
+      {justRegistered && !error && (
+        <div className="success-box" role="status">
+          Account created. Log in to continue.
+        </div>
+      )}
       {error && <div className={`error-box ${shake ? "shake" : ""}`}>{error}</div>}
 
       <form onSubmit={handleSubmit}>

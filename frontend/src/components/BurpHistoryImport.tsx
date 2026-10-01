@@ -7,6 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 import { Spinner } from "@/components/Spinner";
 import { PolicySelect } from "@/components/PolicySelect";
+import { TargetTypeSelect } from "@/components/TargetTypeSelect";
+import { DEFAULT_TARGET_TYPE, type TargetType } from "@/lib/targetType";
 import type { BurpImportSummary, Policy } from "@/lib/types";
 
 type Stage = "idle" | "uploading" | "parsed" | "analyzing";
@@ -78,6 +80,7 @@ export function BurpHistoryImport() {
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [policyId, setPolicyId] = useState("");
+  const [targetType, setTargetType] = useState<TargetType>(DEFAULT_TARGET_TYPE);
   const [reportName, setReportName] = useState("");
 
   useEffect(() => {
@@ -122,6 +125,7 @@ export function BurpHistoryImport() {
     try {
       const result = await api.analyzeBurpImport(summary.id, {
         policy_id: policyId,
+        target_type: targetType,
         name: reportName.trim() || undefined,
         filters: {
           hosts: toFilterList(selectedHosts, summary.facets.hosts),
@@ -272,7 +276,9 @@ export function BurpHistoryImport() {
         </div>
       </div>
 
-      <div className="field" style={{ marginTop: 18 }}>
+      <TargetTypeSelect value={targetType} onChange={setTargetType} style={{ marginTop: 18 }} />
+
+      <div className="field" style={{ marginTop: 14 }}>
         <label>Security Policy</label>
         {policies.length === 0 ? (
           <p className="field-hint">

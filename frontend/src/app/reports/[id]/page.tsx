@@ -10,6 +10,7 @@ import { FindingCard } from "@/components/FindingCard";
 import { CSPPanel } from "@/components/CSPPanel";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
 import { ScoreHistoryPanel } from "@/components/ScoreHistoryPanel";
+import { targetTypeLabel } from "@/lib/targetType";
 import { BackLink } from "@/components/BackLink";
 import { PolicyFormSkeleton } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
@@ -97,7 +98,8 @@ export default function ReportDetailPage() {
               report.policy_name
             )}{" "}
             ({report.policy_version}) · {report.headers_evaluated} header
-            {report.headers_evaluated === 1 ? "" : "s"} evaluated
+            {report.headers_evaluated === 1 ? "" : "s"} evaluated · Target type:{" "}
+            {targetTypeLabel(report.target_type)}
           </p>
           <p className="field-hint" style={{ margin: "4px 0 0" }}>
             <strong>Date:</strong> {scannedAt.toLocaleDateString(undefined, { dateStyle: "medium" })} ·{" "}

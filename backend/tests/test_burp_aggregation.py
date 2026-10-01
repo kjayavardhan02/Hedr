@@ -184,3 +184,44 @@ def test_empty_survivor_list_gives_zeroed_summary_not_a_crash():
     assert result.summary.overall_score == 0.0
     assert result.endpoints == []
     assert result.host_summary == []
+
+
+# --- Target type & applicability ------------------------------------------
+
+
+def test_rest_api_target_type_marks_browser_headers_na_and_keeps_them_out_of_the_score():
+    from app.schemas import TargetType
+
+    entry = _entry(
+        1,
+        url="https://api.example.com/users",
+        host="api.example.com",
+        content_type="application/json",
+        headers={"strict-transport-security": "max-age=31536000"},
+    )
+    policy = _policy([HSTS_HEADER, XFO_HEADER])
+
+    web = build_analysis([entry], policy, TargetType.WEB_APPLICATION)
+    api = build_analysis([entry], policy, TargetType.REST_API)
+
+    # Same response: as a web app the missing X-Frame-Options is a finding...
+    assert web.endpoints[0].policy_score < 100.0
+    # ...as a REST API it is N/A, so the endpoint scores 100 on what applies.
+    assert api.target_type == TargetType.REST_API
+    assert api.endpoints[0].policy_score == 100.0
+    assert api.endpoints[0].has_findings is False
+    xfo = next(hr for hr in api.endpoints[0].header_results if hr.header == "X-Frame-Options")
+    assert xfo.status == "not_applicable"
+    assert xfo.applicability_reason
+    assert xfo.severity is None
+    assert api.findings == []
+    assert api.summary.checks.model_dump() == {"applicable": 1, "passed": 1, "failed": 0, "not_applicable": 1}
+    coverage = next(c for c in api.header_coverage if c.header == "X-Frame-Options")
+    assert (coverage.present, coverage.missing, coverage.not_applicable) == (0, 0, 1)
+
+
+def test_burp_defaults_to_web_application_target_type():
+    from app.schemas import TargetType
+
+    entry = _entry(1, url="https://example.com/", host="example.com", headers={})
+    assert build_analysis([entry], _policy([XFO_HEADER])).target_type == TargetType.WEB_APPLICATION

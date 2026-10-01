@@ -36,8 +36,9 @@ def _csp_passed(csp_finding: dict | None) -> bool | None:
     """CSP has no single PASS/FAIL field of its own - it's a list of policy
     and best-practice checks - so, same rule the regular header comparators
     already use, it counts as failed if ANY of its checks failed. Returns
-    None when the policy didn't check CSP at all (nothing to count)."""
-    if csp_finding is None:
+    None when the policy didn't check CSP at all, or CSP was not applicable
+    to this target (nothing to count)."""
+    if csp_finding is None or csp_finding.get("applicable", True) is False:
         return None
     checks = [*(csp_finding.get("policy_checks") or []), *(csp_finding.get("security_checks") or [])]
     return not any(c.get("status") == "FAIL" for c in checks)

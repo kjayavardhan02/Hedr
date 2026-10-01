@@ -224,3 +224,33 @@ def test_summary_dates_are_human_readable():
     values = {row[0]: row[1] for row in ws.iter_rows(values_only=True) if row[0]}
     assert values["Imported At"] == "01 Oct 2026, 02:35 PM UTC"
     assert values["Analyzed At"] == "01 Oct 2026, 02:35 PM UTC"
+
+
+def test_target_type_and_na_reasons_are_exported():
+    from app.core.burp_aggregation import build_analysis
+    from app.schemas import TargetType
+
+    resolved = ResolvedPolicy(
+        policy=None,  # type: ignore[arg-type]
+        policy_headers=[HSTS_HEADER, PolicyHeaderIn(header_name="X-Frame-Options", expected_value="DENY", required=True)],
+        policy_name="Strict",
+        policy_version="v1",
+        csp_policy=None,
+    )
+    entry = _entry(
+        1, url="https://api.example.com/u", host="api.example.com",
+        headers={"strict-transport-security": "max-age=31536000"}, content_type="application/json",
+    )
+    analysis = build_analysis([entry], resolved, TargetType.REST_API)
+    wb = _load(build_workbook(FakeRecord(analysis)))
+
+    summary = {row[0]: row[1] for row in wb["Summary"].iter_rows(values_only=True) if row[0]}
+    assert summary["Target Type"] == "REST API"
+    assert summary["Header Checks Not Applicable"] == 1
+
+    ws = wb["Endpoint Analysis"]
+    header_row = [c.value for c in ws[1]]
+    row = list(next(ws.iter_rows(min_row=2, values_only=True)))
+    assert row[header_row.index("X-Frame-Options Status")] == "Not Applicable"
+    assert "X-Frame-Options:" in row[header_row.index("Not Applicable (Reason)")]
+    assert row[header_row.index("Policy Score")] == "100.0%"

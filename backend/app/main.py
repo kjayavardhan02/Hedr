@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models, seed
 from app.version import SCANNER_VERSION
 from app.database import Base, SessionLocal, engine, ensure_schema
-from app.routers import auth, burp, dashboard, explain, policies, profile, reports, scan
+from app.routers import auth, burp, dashboard, explain, mfa, policies, profile, reports, scan
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(mfa.router)
 app.include_router(policies.router)
 app.include_router(scan.router)
 app.include_router(reports.router)

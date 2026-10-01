@@ -22,6 +22,8 @@ import { CSPPanel } from "@/components/CSPPanel";
 import { Spinner } from "@/components/Spinner";
 import { PolicySelect } from "@/components/PolicySelect";
 import { BurpHistoryImport } from "@/components/BurpHistoryImport";
+import { TargetTypeSelect } from "@/components/TargetTypeSelect";
+import { DEFAULT_TARGET_TYPE, type TargetType } from "@/lib/targetType";
 
 
 const EXAMPLE_RAW = `HTTP/1.1 200 OK
@@ -39,6 +41,7 @@ export default function ScanPage() {
   const [rawResponse, setRawResponse] = useState("");
   const [targetName, setTargetName] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
+  const [targetType, setTargetType] = useState<TargetType>(DEFAULT_TARGET_TYPE);
 
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [policySource, setPolicySource] = useState<"saved" | "adhoc">("saved");
@@ -119,6 +122,7 @@ export default function ScanPage() {
               raw_response: inputMode === "raw" ? rawResponse : undefined,
               target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
               target_url: inputMode === "raw" ? targetUrl.trim() || undefined : undefined,
+              target_type: targetType,
               policy_id: selectedPolicyId,
             }
           : {
@@ -127,6 +131,7 @@ export default function ScanPage() {
               raw_response: inputMode === "raw" ? rawResponse : undefined,
               target_name: inputMode === "raw" ? targetName.trim() || undefined : undefined,
               target_url: inputMode === "raw" ? targetUrl.trim() || undefined : undefined,
+              target_type: targetType,
               policy: {
                 name: adhocName || "Ad-hoc Policy",
                 description: "",
@@ -190,6 +195,7 @@ export default function ScanPage() {
               Hedr fetches this URL server-side and reads the response headers.
               Requests to private/internal addresses are blocked.
             </span>
+            <TargetTypeSelect value={targetType} onChange={setTargetType} style={{ marginTop: 14 }} />
           </div>
         ) : (
           <div className="fade-in" key="raw-field">
@@ -222,6 +228,7 @@ export default function ScanPage() {
                 characters ({targetName.length}/{TARGET_NAME_MAX_LENGTH}).
               </span>
             </div>
+            <TargetTypeSelect value={targetType} onChange={setTargetType} />
             <div className="field">
               <label>Raw response / headers</label>
               <textarea

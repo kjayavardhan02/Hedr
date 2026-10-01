@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { formatDateTime, roundDelta } from "@/lib/format";
-import type { ComparisonChanges, ComparisonReportRef, ComparisonResponse } from "@/lib/types";
+import type { ApplicabilityChange, ComparisonChanges, ComparisonReportRef, ComparisonResponse } from "@/lib/types";
+import { targetTypeLabel } from "@/lib/targetType";
 
 const REASON_TEXT: Record<string, { title: string; body: string }> = {
   no_previous_scan: {
@@ -101,6 +102,14 @@ function hasHeaderChanges(changes: ComparisonChanges): boolean {
   );
 }
 
+function hasApplicabilityChanges(changes: ComparisonChanges): boolean {
+  return (changes.applicability_changes ?? []).length > 0;
+}
+
+function statusText(applicable: boolean, status: ApplicabilityChange["previous_status"]): string {
+  return applicable ? `Applicable / ${status}` : "N/A";
+}
+
 function hasFindingChanges(changes: ComparisonChanges): boolean {
   return (
     changes.findings_resolved.length > 0 ||
@@ -126,9 +135,42 @@ function hasCspChanges(changes: ComparisonChanges): boolean {
 function ComparisonDetails({ changes }: { changes: ComparisonChanges }) {
   return (
     <>
+      {hasApplicabilityChanges(changes) && (
+        <>
+          <h4 style={{ margin: "0 0 4px", fontSize: 14 }}>Applicability Changed</h4>
+          <p className="field-hint" style={{ margin: "0 0 6px" }}>
+            These headers moved between applicable and N/A. That is a change in context, not a security
+            improvement or regression, so it is not counted as resolved or new.
+          </p>
+          <div className="comparison-list">
+            {(changes.applicability_changes ?? []).map((a) => (
+              <div className="comparison-row comparison-row-stacked" key={`applic-${a.header}`}>
+                <div className="comparison-row-main">
+                  <span className="comparison-row-icon comparison-changed">~</span>
+                  <span className="mono">{a.header}</span>
+                </div>
+                <div className="comparison-value">
+                  Previously: {statusText(a.previous_applicable, a.previous_status)}
+                  <br />
+                  Current: {statusText(a.latest_applicable, a.latest_status)}
+                  {a.reason && (
+                    <>
+                      <br />
+                      <span className="field-hint">Reason: {a.reason}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       {hasHeaderChanges(changes) && (
         <>
-          <h4 style={{ margin: "0 0 4px", fontSize: 14 }}>Header Changes</h4>
+          <h4 style={{ margin: hasApplicabilityChanges(changes) ? "16px 0 4px" : "0 0 4px", fontSize: 14 }}>
+            Header Changes
+          </h4>
           <div className="comparison-list">
             {changes.headers_added.map((h) => (
               <div className="comparison-row comparison-row-stacked" key={`added-${h.header}`}>
@@ -286,6 +328,9 @@ function ScanMeta({ label, scan }: { label: string; scan: ComparisonReportRef })
         Scan #{scan.scan_number} · {scan.score} / 100 · {scan.grade}
       </span>
       <span className="field-hint" style={{ margin: 0 }}>
+        Target type: {targetTypeLabel(scan.target_type)}
+      </span>
+      <span className="field-hint" style={{ margin: 0 }}>
         {formatDateTime(scan.scanned_at)}
       </span>
     </div>
@@ -396,7 +441,8 @@ export function ComparisonPanel({ reportId }: { reportId: string }) {
   const { previous_report, latest_report, summary, changes } = comparison;
   if (!previous_report || !latest_report || !summary || !changes) return null;
 
-  const hasDetails = hasHeaderChanges(changes) || hasFindingChanges(changes) || hasCspChanges(changes);
+  const hasDetails =
+    hasApplicabilityChanges(changes) || hasHeaderChanges(changes) || hasFindingChanges(changes) || hasCspChanges(changes);
   const scoreDelta = roundDelta(summary.score_delta);
   const trend = trendOf(scoreDelta);
   const changedCount = summary.headers_changed + summary.severity_changes;
@@ -419,6 +465,17 @@ export function ComparisonPanel({ reportId }: { reportId: string }) {
           </button>
         )}
       </div>
+
+      {comparison.target_type_changed && (
+        <div className="adhoc-note" role="note" style={{ marginTop: 12 }}>
+          <div>
+            <strong>Applicability changed.</strong> Target type changed from{" "}
+            {targetTypeLabel(previous_report.target_type)} to {targetTypeLabel(latest_report.target_type)}, so
+            the score difference may reflect which headers apply rather than a real change in the target&apos;s
+            security.
+          </div>
+        </div>
+      )}
 
       <div className="cmp-hero">
         <div className="cmp-delta-block">
@@ -452,6 +509,12 @@ export function ComparisonPanel({ reportId }: { reportId: string }) {
             <span className="cmp-tile-value">{changedCount}</span>
             <span className="cmp-tile-label">Changed</span>
           </div>
+          {(summary.applicability_changes ?? 0) > 0 && (
+            <div className="cmp-tile is-zero">
+              <span className="cmp-tile-value">{summary.applicability_changes}</span>
+              <span className="cmp-tile-label">N/A changes</span>
+            </div>
+          )}
         </div>
       </div>
 

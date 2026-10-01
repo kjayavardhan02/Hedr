@@ -9,6 +9,10 @@ import type {
   ExplainRequestPayload,
   ExplainResponse,
   LoginPayload,
+  LoginResult,
+  MFACodeIssued,
+  MFALoginChallenge,
+  MFAStatus,
   PasswordChangePayload,
   Policy,
   PolicyCreatePayload,
@@ -114,10 +118,28 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   login: (payload: LoginPayload) =>
-    request<User>("/api/auth/login", {
+    request<LoginResult>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  mfaLoginVerify: (challengeId: string, code: string) =>
+    request<User>("/api/mfa/login/verify", {
+      method: "POST",
+      body: JSON.stringify({ challenge_id: challengeId, code }),
+    }),
+  mfaLoginResend: (challengeId: string) =>
+    request<MFALoginChallenge>("/api/mfa/login/resend", {
+      method: "POST",
+      body: JSON.stringify({ challenge_id: challengeId }),
+    }),
+  mfaStatus: () => request<MFAStatus>("/api/mfa/status"),
+  mfaEnableRequest: () => request<MFACodeIssued>("/api/mfa/enable/request", { method: "POST" }),
+  mfaEnableVerify: (code: string) =>
+    request<MFAStatus>("/api/mfa/enable/verify", { method: "POST", body: JSON.stringify({ code }) }),
+  mfaDisableRequest: (password: string) =>
+    request<MFACodeIssued>("/api/mfa/disable/request", { method: "POST", body: JSON.stringify({ password }) }),
+  mfaDisableVerify: (code: string) =>
+    request<MFAStatus>("/api/mfa/disable/verify", { method: "POST", body: JSON.stringify({ code }) }),
   logout: () => request<void>("/api/auth/logout", { method: "POST" }),
   me: () => request<User>("/api/auth/me"),
   listPolicies: () => request<Policy[]>("/api/policies"),

@@ -1,6 +1,7 @@
+import { targetTypeLabel, type TargetType } from "./targetType";
 import { jsPDF } from "jspdf";
 import autoTable, { type CellHookData } from "jspdf-autotable";
-import type { CheckResult, CSPDirectiveRule, CSPFinding, CSPPolicy, HeaderFinding, Policy, PolicyHeader, SeverityLevel } from "./types";
+import type { CheckResult, CSPDirectiveRule, CSPFinding, CSPPolicy, HeaderFinding, Policy, PolicyHeader, ScoreBreakdown, SeverityLevel } from "./types";
 
 // Accepted by both a live ScanResult and a saved ScanReport - scan_number,
 // policy_id and policy_version only exist on saved reports, so they're optional.
@@ -17,6 +18,8 @@ export interface PdfReportData {
   policy_id?: string | null;
   policy_version?: string;
   scanner_version?: string | null;
+  target_type?: TargetType | null;
+  breakdown?: ScoreBreakdown | null;
 }
 
 export interface PdfOptions {
@@ -44,7 +47,7 @@ const PASS: RGB = [30, 140, 60];
 const FAIL: RGB = [200, 50, 50];
 const WARN: RGB = [180, 130, 20];
 
-const STATUS_COLOR: Record<string, RGB> = { PASS, FAIL, WARNING: WARN, INFO: [90, 90, 90] };
+const STATUS_COLOR: Record<string, RGB> = { PASS, FAIL, WARNING: WARN, INFO: [90, 90, 90], "N/A": MUTED };
 
 function gradeColor(grade: string): RGB {
   if (grade === "A" || grade === "B") return PASS;
@@ -279,6 +282,7 @@ function summaryCard(doc: jsPDF, y: number, data: PdfReportData): number {
     ["Scanned", formatWhen(data.scanned_at)],
     ["Policy", `${data.policy_name}${data.policy_version ? ` (${data.policy_version})` : ""}`],
   ];
+  meta.splice(1, 0, ["Target type", targetTypeLabel(data.target_type)]);
   if (data.scan_number) meta.unshift(["Scan", `#${data.scan_number}`]);
   if (data.fetched_status_code != null) meta.push(["HTTP status", String(data.fetched_status_code)]);
   if (data.scanner_version) meta.push(["Scanner", `Hedr v${data.scanner_version}`]);
@@ -545,7 +549,7 @@ function headerIssues(findings: HeaderFinding[]): Issue[] {
       issues.push({
         label: f.header,
         message: f.issue ?? "The value does not comply with the configured policy.",
-        severity: f.severity,
+        severity: f.severity ?? "info",
         status: "FAIL",
         source: "header",
       });
@@ -609,8 +613,11 @@ function severityTag(doc: jsPDF, x: number, y: number, text: string, color: RGB)
 function executiveSummary(doc: jsPDF, y: number, data: PdfReportData): number {
   const headersPassed = data.findings.filter((f) => f.status === "PASS").length;
   const headersFailed = data.findings.filter((f) => f.status === "FAIL").length;
-  const total = data.findings.length;
-  const csp = data.csp_finding;
+  // Not-applicable headers are skipped, not checked: they stay out of every count.
+  const naHeaders = data.findings.filter((f) => f.status === "NOT_APPLICABLE").length;
+  const total = data.findings.length - naHeaders;
+  const csp = data.csp_finding && data.csp_finding.applicable !== false ? data.csp_finding : null;
+  const naTotal = naHeaders + (data.csp_finding && data.csp_finding.applicable === false ? 1 : 0);
   const gap = 10;
   const tileW = (CONTENT_W - gap * 2) / 3;
   const at = (i: number) => MARGIN_X + i * (tileW + gap);
@@ -632,6 +639,17 @@ function executiveSummary(doc: jsPDF, y: number, data: PdfReportData): number {
     statTile(doc, at(1), y, tileW, "CSP best-practice checks passed", "N/A", MUTED);
     statTile(doc, at(2), y, tileW, "Overall CSP score", "N/A", MUTED);
     y += 46 + gap;
+  }
+  if (naTotal > 0) {
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text(
+      `${naTotal} ${plural(naTotal, "check", "checks")} not applicable to this ${targetTypeLabel(data.target_type)} target - excluded from the score.`,
+      MARGIN_X,
+      y - 2
+    );
+    y += 12;
   }
   return y;
 }
@@ -760,13 +778,13 @@ function wrap(doc: jsPDF, text: string, width: number): string[] {
 
 function recommendations(doc: jsPDF, y: number, data: PdfReportData): number {
   const textW = CONTENT_W - 28 - 70;
-  const failing = data.findings.filter((f) => f.status !== "PASS" && (f.issue || f.recommendation));
+  const failing = data.findings.filter((f) => f.status !== "PASS" && f.status !== "NOT_APPLICABLE" && (f.issue || f.recommendation));
   const notes = data.findings.flatMap((f) => (f.advisories ?? []).map((a) => ({ header: f.header, advisory: a })));
   if (failing.length === 0 && notes.length === 0) return y;
 
   y = beginSection(doc, y, "Recommendations", "What to change, and why. Expected and actual values are shown side by side.", { minSpace: 170 });
   for (const f of failing) {
-    y = recommendationCard(doc, y, f.header, f.severity.toUpperCase(), SEVERITY_COLOR[f.severity], [
+    y = recommendationCard(doc, y, f.header, (f.severity ?? "info").toUpperCase(), SEVERITY_COLOR[f.severity ?? "info"], [
       { label: "Issue", lines: wrap(doc, f.issue ?? "The value does not comply with the configured policy.", textW) },
       { label: "Expected", lines: wrap(doc, describeExpected(f.header, f.policy_expected).replace(/\n/g, "; "), textW) },
       { label: "Actual", lines: wrap(doc, f.actual_value ?? "(header not present)", textW) },
@@ -1001,10 +1019,20 @@ export function downloadReportPdf(data: PdfReportData, options: PdfOptions = {})
       body: data.findings.map((f) => {
         // Keep the raw value; show what it normalized to when that is why it matched.
         const normalized = f.checks.map((c) => c.evidence).find((e) => e);
+        if (f.status === "NOT_APPLICABLE") {
+          return [
+            f.header,
+            "N/A",
+            "-",
+            "-",
+            describeExpected(f.header, f.policy_expected),
+            `Not applicable: ${f.applicability_reason ?? "does not apply to this target."}`,
+          ];
+        }
         return [
           f.header,
           f.status,
-          f.severity,
+          f.severity ?? "-",
           `${f.score_earned}/${f.score_possible}`,
           describeExpected(f.header, f.policy_expected),
           `${f.actual_value ?? "(missing)"}${normalized ? `\n(${normalized})` : ""}`,
@@ -1019,7 +1047,11 @@ export function downloadReportPdf(data: PdfReportData, options: PdfOptions = {})
 
   y = recommendations(doc, y, data);
 
-  if (data.csp_finding && data.csp_finding.policy_checks.length + data.csp_finding.security_checks.length > 0) {
+  if (
+    data.csp_finding &&
+    data.csp_finding.applicable !== false &&
+    data.csp_finding.policy_checks.length + data.csp_finding.security_checks.length > 0
+  ) {
     y = cspSection(doc, y, data.csp_finding);
   }
 

@@ -42,6 +42,13 @@ function StatusIcon({ status }: { status: Status }) {
           <circle cx="8" cy="11.7" r="0.9" fill="currentColor" />
         </svg>
       );
+    case "NOT_APPLICABLE":
+      return (
+        <svg {...common}>
+          <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M4.8 11.2l6.4-6.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>
@@ -57,7 +64,7 @@ export function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={`badge badge-${status}`}>
       <StatusIcon status={status} />
-      {status}
+      {status === "NOT_APPLICABLE" ? "N/A" : status}
     </span>
   );
 }

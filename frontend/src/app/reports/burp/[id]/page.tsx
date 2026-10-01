@@ -1,5 +1,6 @@
 "use client";
 
+import { targetTypeLabel } from "@/lib/targetType";
 import { useDeferredValue, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -91,6 +92,17 @@ function BurpScoreHero({
             {summary.unique_hosts} host{summary.unique_hosts === 1 ? "" : "s"} ·{" "}
             {summary.unique_paths} unique path{summary.unique_paths === 1 ? "" : "s"} ·{" "}
             {summary.responses_analyzed} response{summary.responses_analyzed === 1 ? "" : "s"} analyzed
+          </div>
+          <div className="field-hint" style={{ marginTop: 2 }}>
+            Target type: <strong>{targetTypeLabel(analysis.target_type ?? record.target_type)}</strong>
+            {summary.checks && (
+              <>
+                {" "}
+                · {summary.checks.passed} of {summary.checks.applicable} applicable checks passed
+                {summary.checks.not_applicable > 0 &&
+                  ` · ${summary.checks.not_applicable} not applicable (excluded from the score)`}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -273,10 +285,13 @@ function EndpointRow({ endpoint, highlightQuery }: { endpoint: BurpEndpointAnaly
                 <div key={hr.header} className="value-row" style={{ alignItems: "center" }}>
                   <StatusBadge status={hr.status} />
                   <span style={{ fontWeight: 600 }}>{hr.header}</span>
-                  {hr.actual_value && (
+                  {hr.actual_value && hr.status !== "not_applicable" && (
                     <span className="field-hint mono" style={{ overflowWrap: "anywhere" }}>
                       {hr.actual_value}
                     </span>
+                  )}
+                  {hr.status === "not_applicable" && (
+                    <span className="na-reason">{hr.applicability_reason ?? "Not applicable to this target."}</span>
                   )}
                 </div>
               ))}

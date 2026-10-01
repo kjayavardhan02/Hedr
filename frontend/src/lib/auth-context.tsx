@@ -8,14 +8,18 @@ import {
   useState,
 } from "react";
 import { AUTH_EVENT, api } from "./api";
-import type { User } from "./types";
+import { isMfaChallenge, type MFALoginChallenge, type User } from "./types";
 import { clearSavedFilters } from "./savedFilters";
 import { applyTheme } from "./theme";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Resolves to null once signed in, or to an MFA challenge when the account
+   * needs an emailed code first (no session exists until it is verified). */
+  login: (email: string, password: string) => Promise<MFALoginChallenge | null>;
+  /** Second step of an MFA sign-in. */
+  completeMfaLogin: (challengeId: string, code: string) => Promise<void>;
   register: (
     email: string,
     password: string,
@@ -62,19 +66,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const loggedIn = await api.login({ email, password });
+    const result = await api.login({ email, password });
+    if (isMfaChallenge(result)) return result;
+    setUserAndApplyTheme(result);
+    return null;
+  }, []);
+
+  const completeMfaLogin = useCallback(async (challengeId: string, code: string) => {
+    const loggedIn = await api.mfaLoginVerify(challengeId, code);
     setUserAndApplyTheme(loggedIn);
   }, []);
 
   const register = useCallback(
     async (email: string, password: string, firstName: string, lastName: string) => {
-      const created = await api.register({
+      // Creates the account only - no session. The signup page then sends the
+      // user to the login page to sign in.
+      await api.register({
         email,
         password,
         first_name: firstName,
         last_name: lastName,
       });
-      setUserAndApplyTheme(created);
     },
     []
   );
@@ -95,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, completeMfaLogin, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

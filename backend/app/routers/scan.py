@@ -104,6 +104,7 @@ def scan(
         fetched_status_code=fetched_status_code,
         csp_policy=csp_policy,
         target_url=target_url,
+        target_type=payload.target_type,
     )
 
     # Save a report of this scan - only the policy-scoped findings/CSP
@@ -126,6 +127,7 @@ def scan(
             target=scan_result.target,
             target_url=scan_result.target_url,
             fetched_status_code=scan_result.fetched_status_code,
+            target_type=payload.target_type.value,
             score=scan_result.score,
             grade=scan_result.grade,
             findings=[f.model_dump(mode="json") for f in scan_result.findings],

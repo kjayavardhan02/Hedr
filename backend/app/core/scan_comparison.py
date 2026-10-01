@@ -15,8 +15,10 @@ from urllib.parse import urlsplit
 from sqlalchemy.orm import Session
 
 from app import models
+from app.core.applicability import label as target_type_label
 from app.core.comparators import values_equivalent
 from app.schemas import (
+    ApplicabilityChange,
     ComparisonChanges,
     ComparisonReportRef,
     ComparisonResponse,
@@ -234,6 +236,14 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
         previous.findings or [], latest.findings or []
     )
     csp_changes = _diff_csp(previous.csp_finding, latest.csp_finding)
+    applicability_changes = _diff_applicability(
+        previous.findings or [],
+        latest.findings or [],
+        previous.csp_finding,
+        latest.csp_finding,
+        previous.target_type,
+        latest.target_type,
+    )
 
     summary = ComparisonSummary(
         previous_score=previous.score,
@@ -247,6 +257,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
         findings_resolved=len(findings_resolved),
         findings_new=len(findings_new),
         severity_changes=len(severity_changes),
+        applicability_changes=len(applicability_changes),
     )
 
     changes = ComparisonChanges(
@@ -257,6 +268,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
         findings_new=findings_new,
         severity_changes=severity_changes,
         csp_changes=csp_changes,
+        applicability_changes=applicability_changes,
     )
 
     return ComparisonResponse(
@@ -266,6 +278,7 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
             scan_number=previous.scan_number,
             target=previous.target,
             target_url=previous.target_url,
+            target_type=previous.target_type,
             score=previous.score,
             grade=previous.grade,
             scanned_at=previous.scanned_at,
@@ -275,12 +288,16 @@ def compare_reports(previous: models.ScanReport, latest: models.ScanReport) -> C
             scan_number=latest.scan_number,
             target=latest.target,
             target_url=latest.target_url,
+            target_type=latest.target_type,
             score=latest.score,
             grade=latest.grade,
             scanned_at=latest.scanned_at,
         ),
         summary=summary,
         changes=changes,
+        target_type_changed=bool(
+            previous.target_type and latest.target_type and previous.target_type != latest.target_type
+        ),
     )
 
 
@@ -333,6 +350,10 @@ def _diff_findings(
     for name in sorted(set(prev_by_name) | set(latest_by_name)):
         prev = prev_by_name.get(name)
         latest = latest_by_name.get(name)
+        # N/A <-> applicable is reported separately (see _diff_applicability);
+        # it is not a security improvement or regression.
+        if _applicable(prev) != _applicable(latest):
+            continue
         prev_status = prev.get("status") if prev else "PASS"
         latest_status = latest.get("status") if latest else "PASS"
         prev_failing = prev_status == _FAIL
@@ -368,6 +389,72 @@ def _diff_findings(
     return resolved, new, severity_changed
 
 
+def _applicable(finding: dict | None) -> bool:
+    """Findings saved before applicability existed have no flag: applicable."""
+    return True if finding is None else finding.get("applicable", True) is not False
+
+
+def _applicability_reason(
+    prev: dict | None, latest: dict | None, previous_type: str | None, latest_type: str | None
+) -> str | None:
+    if previous_type and latest_type and previous_type != latest_type:
+        return f"Target type changed from {target_type_label(previous_type)} to {target_type_label(latest_type)}."
+    if not _applicable(latest):
+        return (latest or {}).get("applicability_reason")
+    reason = (prev or {}).get("applicability_reason")
+    return f"Previously not applicable: {reason}" if reason else None
+
+
+def _applicability_status(finding: dict | None) -> str:
+    if not _applicable(finding):
+        return "NOT_APPLICABLE"
+    return (finding or {}).get("status", "PASS")
+
+
+def _diff_applicability(
+    prev_findings: list[dict],
+    latest_findings: list[dict],
+    prev_csp: dict | None,
+    latest_csp: dict | None,
+    previous_type: str | None,
+    latest_type: str | None,
+) -> list[ApplicabilityChange]:
+    changes: list[ApplicabilityChange] = []
+    prev_by_name = {f["header"]: f for f in prev_findings}
+    latest_by_name = {f["header"]: f for f in latest_findings}
+    for name in sorted(set(prev_by_name) & set(latest_by_name)):
+        prev, latest = prev_by_name[name], latest_by_name[name]
+        if _applicable(prev) == _applicable(latest):
+            continue
+        changes.append(
+            ApplicabilityChange(
+                header=name,
+                previous_applicable=_applicable(prev),
+                latest_applicable=_applicable(latest),
+                previous_status=_applicability_status(prev),
+                latest_status=_applicability_status(latest),
+                reason=_applicability_reason(prev, latest, previous_type, latest_type),
+            )
+        )
+    if prev_csp is not None and latest_csp is not None and _applicable(prev_csp) != _applicable(latest_csp):
+        def csp_status(c: dict) -> str:
+            if not _applicable(c):
+                return "NOT_APPLICABLE"
+            return "PASS" if c.get("policy_checks_passed", 0) == c.get("policy_checks_total", 0) else "FAIL"
+
+        changes.append(
+            ApplicabilityChange(
+                header="Content-Security-Policy",
+                previous_applicable=_applicable(prev_csp),
+                latest_applicable=_applicable(latest_csp),
+                previous_status=csp_status(prev_csp),
+                latest_status=csp_status(latest_csp),
+                reason=_applicability_reason(prev_csp, latest_csp, previous_type, latest_type),
+            )
+        )
+    return changes
+
+
 def _csp_identity(check: dict) -> tuple[str | None, str | None]:
     return check.get("id"), check.get("directive")
 
@@ -384,6 +471,12 @@ def _index_csp_checks(checks: list[dict], category: str) -> dict[tuple[str | Non
 
 def _diff_csp(prev_csp: dict | None, latest_csp: dict | None) -> CSPChanges | None:
     if prev_csp is None and latest_csp is None:
+        return None
+    # A CSP that was (or is now) not applicable has no checks to compare; the
+    # flip itself is reported by _diff_applicability.
+    if (prev_csp is not None and not _applicable(prev_csp)) or (
+        latest_csp is not None and not _applicable(latest_csp)
+    ):
         return None
 
     prev_csp = prev_csp or {
